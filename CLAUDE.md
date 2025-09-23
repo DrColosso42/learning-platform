@@ -64,3 +64,9 @@ frontend/
 - Each feature should be self-contained and deployable
 - Environment parity between development and production
 - Use Docker for consistent environments
+
+### Running the Application
+- **ALWAYS** use `docker compose up` to run the application
+- **NEVER** run `npm install`, `npm start`, or any local node commands
+- All development should happen through Docker containers
+- Database, backend, and frontend must run via Docker Compose
