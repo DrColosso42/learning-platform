@@ -3,13 +3,14 @@ import { AuthService } from '../services/authService'
 
 interface LoginPageProps {
   onBack: () => void
+  onLoginSuccess: () => void
 }
 
 /**
  * Login page with form validation and error handling
  * Integrates with backend authentication API
  */
-function LoginPage({ onBack }: LoginPageProps) {
+function LoginPage({ onBack, onLoginSuccess }: LoginPageProps) {
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -35,8 +36,7 @@ function LoginPage({ onBack }: LoginPageProps) {
     try {
       const response = await AuthService.login(formData)
       console.log('Login successful:', response)
-      // TODO: Navigate to dashboard
-      alert(`Welcome back, ${response.user.name}!`)
+      onLoginSuccess()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
     } finally {
