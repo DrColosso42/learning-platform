@@ -4,6 +4,7 @@ import RecentStudies from '../components/RecentStudies'
 import ProjectManagement from '../components/ProjectManagement'
 import ActivityCalendar from '../components/ActivityCalendar'
 import UserStats from '../components/UserStats'
+import QuestionManagementPage from './QuestionManagementPage'
 
 /**
  * Main dashboard page showing user's learning overview
@@ -12,14 +13,38 @@ import UserStats from '../components/UserStats'
 function DashboardPage() {
   const user = AuthService.getUser()
   const [activeTab, setActiveTab] = useState<'overview' | 'projects' | 'stats'>('overview')
+  const [questionManagement, setQuestionManagement] = useState<{
+    projectId: number
+    projectName: string
+  } | null>(null)
 
   const handleLogout = () => {
     AuthService.logout()
     window.location.reload() // Simple reload to reset app state
   }
 
+  const handleManageQuestions = (projectId: number, projectName: string) => {
+    setQuestionManagement({ projectId, projectName })
+  }
+
+  const handleBackFromQuestions = () => {
+    setQuestionManagement(null)
+    setActiveTab('projects') // Go back to projects tab
+  }
+
   if (!user) {
     return <div>Please log in to access the dashboard.</div>
+  }
+
+  // Show question management if selected
+  if (questionManagement) {
+    return (
+      <QuestionManagementPage
+        projectId={questionManagement.projectId}
+        projectName={questionManagement.projectName}
+        onBack={handleBackFromQuestions}
+      />
+    )
   }
 
   return (
@@ -114,7 +139,7 @@ function DashboardPage() {
           )}
 
           {activeTab === 'projects' && (
-            <ProjectManagement />
+            <ProjectManagement onManageQuestions={handleManageQuestions} />
           )}
 
           {activeTab === 'stats' && (

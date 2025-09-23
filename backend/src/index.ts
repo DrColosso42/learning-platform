@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import { createAuthRoutes } from './routes/authRoutes.js';
 import { createProjectRoutes } from './routes/projectRoutes.js';
 import { createStatisticsRoutes } from './routes/statisticsRoutes.js';
+import { createQuestionRoutes } from './routes/questionRoutes.js';
 import { prisma } from './config/database.js';
 
 /**
@@ -33,6 +34,7 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', createAuthRoutes());
 app.use('/api/projects', createProjectRoutes());
 app.use('/api/statistics', createStatisticsRoutes());
+app.use('/api/questions', createQuestionRoutes());
 
 // Global error handler
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {

@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react'
 import { ProjectService, Project } from '../services/projectService'
 
+interface ProjectManagementProps {
+  onManageQuestions?: (projectId: number, projectName: string) => void
+}
+
 /**
  * Project management interface with CRUD operations
  * Shows projects with completion tracking and management options
  */
-function ProjectManagement() {
+function ProjectManagement({ onManageQuestions }: ProjectManagementProps = {}) {
   const [projects, setProjects] = useState<Project[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [showCreateForm, setShowCreateForm] = useState(false)
@@ -416,6 +420,7 @@ function ProjectManagement() {
               marginTop: '1rem'
             }}>
               <button
+                onClick={() => onManageQuestions?.(project.id, project.name)}
                 className="btn"
                 style={{
                   flex: 1,
