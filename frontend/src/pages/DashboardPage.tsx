@@ -5,6 +5,8 @@ import ProjectManagement from '../components/ProjectManagement'
 import ActivityCalendar from '../components/ActivityCalendar'
 import UserStats from '../components/UserStats'
 import QuestionManagementPage from './QuestionManagementPage'
+import StudySessionPage from './StudySessionPage'
+import QuestionSetSelectionPage from './QuestionSetSelectionPage'
 
 /**
  * Main dashboard page showing user's learning overview
@@ -16,6 +18,14 @@ function DashboardPage() {
   const [questionManagement, setQuestionManagement] = useState<{
     projectId: number
     projectName: string
+  } | null>(null)
+  const [questionSetSelection, setQuestionSetSelection] = useState<{
+    projectId: number
+    projectName: string
+  } | null>(null)
+  const [studySession, setStudySession] = useState<{
+    questionSetId: number
+    questionSetName: string
   } | null>(null)
 
   const handleLogout = () => {
@@ -32,6 +42,25 @@ function DashboardPage() {
     setActiveTab('projects') // Go back to projects tab
   }
 
+  const handleStartStudy = (projectId: number, projectName: string) => {
+    setQuestionSetSelection({ projectId, projectName })
+  }
+
+  const handleBackFromQuestionSetSelection = () => {
+    setQuestionSetSelection(null)
+    setActiveTab('projects') // Go back to projects tab
+  }
+
+  const handleSelectQuestionSet = (questionSetId: number, questionSetName: string) => {
+    setQuestionSetSelection(null)
+    setStudySession({ questionSetId, questionSetName })
+  }
+
+  const handleBackFromStudy = () => {
+    setStudySession(null)
+    setActiveTab('projects') // Go back to projects tab
+  }
+
   if (!user) {
     return <div>Please log in to access the dashboard.</div>
   }
@@ -43,6 +72,29 @@ function DashboardPage() {
         projectId={questionManagement.projectId}
         projectName={questionManagement.projectName}
         onBack={handleBackFromQuestions}
+      />
+    )
+  }
+
+  // Show question set selection if selected
+  if (questionSetSelection) {
+    return (
+      <QuestionSetSelectionPage
+        projectId={questionSetSelection.projectId}
+        projectName={questionSetSelection.projectName}
+        onBack={handleBackFromQuestionSetSelection}
+        onSelectQuestionSet={handleSelectQuestionSet}
+      />
+    )
+  }
+
+  // Show study session if selected
+  if (studySession) {
+    return (
+      <StudySessionPage
+        questionSetId={studySession.questionSetId}
+        questionSetName={studySession.questionSetName}
+        onBack={handleBackFromStudy}
       />
     )
   }
@@ -139,7 +191,10 @@ function DashboardPage() {
           )}
 
           {activeTab === 'projects' && (
-            <ProjectManagement onManageQuestions={handleManageQuestions} />
+            <ProjectManagement
+              onManageQuestions={handleManageQuestions}
+              onStartStudy={handleStartStudy}
+            />
           )}
 
           {activeTab === 'stats' && (

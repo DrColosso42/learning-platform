@@ -171,18 +171,28 @@ export class QuestionService {
       throw new Error('Question set not found or access denied');
     }
 
-    const questions = await prisma.$transaction(
-      bulkData.questions.map(q =>
-        prisma.question.create({
+    // Create questions sequentially to preserve order
+    const questions: Question[] = [];
+
+    await prisma.$transaction(async (tx) => {
+      for (let i = 0; i < bulkData.questions.length; i++) {
+        const questionData = bulkData.questions[i];
+        const question = await tx.question.create({
           data: {
             questionSetId: bulkData.questionSetId,
-            questionText: q.questionText,
-            answerText: q.answerText || null,
-            difficulty: q.difficulty || 1,
+            questionText: questionData.questionText,
+            answerText: questionData.answerText || null,
+            difficulty: questionData.difficulty || 1,
           },
-        })
-      )
-    );
+        });
+        questions.push(question);
+
+        // Small delay to ensure distinct createdAt timestamps
+        if (i < bulkData.questions.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 10));
+        }
+      }
+    });
 
     return questions;
   }

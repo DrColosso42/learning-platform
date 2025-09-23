@@ -5,6 +5,7 @@ import { createAuthRoutes } from './routes/authRoutes.js';
 import { createProjectRoutes } from './routes/projectRoutes.js';
 import { createStatisticsRoutes } from './routes/statisticsRoutes.js';
 import { createQuestionRoutes } from './routes/questionRoutes.js';
+import { createStudySessionRoutes } from './routes/studySessionRoutes.js';
 import { prisma } from './config/database.js';
 
 /**
@@ -35,6 +36,7 @@ app.use('/api/auth', createAuthRoutes());
 app.use('/api/projects', createProjectRoutes());
 app.use('/api/statistics', createStatisticsRoutes());
 app.use('/api/questions', createQuestionRoutes());
+app.use('/api/study-sessions', createStudySessionRoutes());
 
 // Global error handler
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {

@@ -3,13 +3,14 @@ import { ProjectService, Project } from '../services/projectService'
 
 interface ProjectManagementProps {
   onManageQuestions?: (projectId: number, projectName: string) => void
+  onStartStudy?: (projectId: number, projectName: string) => void
 }
 
 /**
  * Project management interface with CRUD operations
  * Shows projects with completion tracking and management options
  */
-function ProjectManagement({ onManageQuestions }: ProjectManagementProps = {}) {
+function ProjectManagement({ onManageQuestions, onStartStudy }: ProjectManagementProps = {}) {
   const [projects, setProjects] = useState<Project[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [showCreateForm, setShowCreateForm] = useState(false)
@@ -432,6 +433,7 @@ function ProjectManagement({ onManageQuestions }: ProjectManagementProps = {}) {
                 📝 Manage Questions
               </button>
               <button
+                onClick={() => onStartStudy?.(project.id, project.name)}
                 className="btn btn-primary"
                 style={{ flex: 1 }}
                 disabled={project.totalQuestions === 0}
