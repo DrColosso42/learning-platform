@@ -5,6 +5,12 @@ export interface LoginRequest {
   password: string
 }
 
+export interface RegisterRequest {
+  name: string
+  email: string
+  password: string
+}
+
 export interface AuthResponse {
   message: string
   user: {
@@ -20,6 +26,33 @@ export interface AuthResponse {
  * Handles login, registration, and token management
  */
 export class AuthService {
+  /**
+   * Register new user account
+   */
+  static async register(userData: RegisterRequest): Promise<AuthResponse> {
+    const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(userData),
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Registration failed')
+    }
+
+    // Store token in localStorage
+    if (data.token) {
+      localStorage.setItem('auth_token', data.token)
+      localStorage.setItem('user', JSON.stringify(data.user))
+    }
+
+    return data
+  }
+
   /**
    * Login user with email and password
    */

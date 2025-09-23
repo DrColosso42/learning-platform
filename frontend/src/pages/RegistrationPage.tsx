@@ -1,18 +1,18 @@
 import { useState } from 'react'
 import { AuthService } from '../services/authService'
 
-interface LoginPageProps {
+interface RegistrationPageProps {
   onBack: () => void
-  onLoginSuccess: () => void
-  onRegisterClick: () => void
+  onRegistrationSuccess: () => void
 }
 
 /**
- * Login page with form validation and error handling
- * Integrates with backend authentication API
+ * Registration page with form validation and error handling
+ * Simple interface for creating new user accounts
  */
-function LoginPage({ onBack, onLoginSuccess, onRegisterClick }: LoginPageProps) {
+function RegistrationPage({ onBack, onRegistrationSuccess }: RegistrationPageProps) {
   const [formData, setFormData] = useState({
+    name: '',
     email: '',
     password: ''
   })
@@ -35,11 +35,11 @@ function LoginPage({ onBack, onLoginSuccess, onRegisterClick }: LoginPageProps) 
     setError('')
 
     try {
-      const response = await AuthService.login(formData)
-      console.log('Login successful:', response)
-      onLoginSuccess()
+      const response = await AuthService.register(formData)
+      console.log('Registration successful:', response)
+      onRegistrationSuccess()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed')
+      setError(err instanceof Error ? err.message : 'Registration failed')
     } finally {
       setIsLoading(false)
     }
@@ -84,15 +84,31 @@ function LoginPage({ onBack, onLoginSuccess, onRegisterClick }: LoginPageProps) 
             color: '#1f2937',
             marginBottom: '0.5rem'
           }}>
-            Welcome Back
+            Create Account
           </h2>
           <p style={{ color: '#6b7280' }}>
-            Sign in to your Learning Advisor account
+            Join Learning Advisor to start your learning journey
           </p>
         </div>
 
-        {/* Login Form */}
+        {/* Registration Form */}
         <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label htmlFor="name" className="form-label">
+              Full Name
+            </label>
+            <input
+              type="text"
+              id="name"
+              name="name"
+              value={formData.name}
+              onChange={handleInputChange}
+              className="form-input"
+              required
+              placeholder="Enter your full name"
+            />
+          </div>
+
           <div className="form-group">
             <label htmlFor="email" className="form-label">
               Email Address
@@ -121,8 +137,15 @@ function LoginPage({ onBack, onLoginSuccess, onRegisterClick }: LoginPageProps) 
               onChange={handleInputChange}
               className="form-input"
               required
-              placeholder="Enter your password"
+              placeholder="Create a strong password"
             />
+            <div style={{
+              fontSize: '0.75rem',
+              color: '#6b7280',
+              marginTop: '0.25rem'
+            }}>
+              Password must be at least 8 characters with uppercase, lowercase, and number
+            </div>
           </div>
 
           {error && (
@@ -141,7 +164,7 @@ function LoginPage({ onBack, onLoginSuccess, onRegisterClick }: LoginPageProps) 
               opacity: isLoading ? 0.7 : 1
             }}
           >
-            {isLoading ? 'Signing In...' : 'Sign In'}
+            {isLoading ? 'Creating Account...' : 'Create Account'}
           </button>
         </form>
 
@@ -152,9 +175,9 @@ function LoginPage({ onBack, onLoginSuccess, onRegisterClick }: LoginPageProps) 
           fontSize: '0.875rem',
           color: '#6b7280'
         }}>
-          Don't have an account?{' '}
+          Already have an account?{' '}
           <button
-            onClick={onRegisterClick}
+            onClick={onBack}
             style={{
               background: 'none',
               border: 'none',
@@ -164,7 +187,7 @@ function LoginPage({ onBack, onLoginSuccess, onRegisterClick }: LoginPageProps) 
               fontSize: '0.875rem'
             }}
           >
-            Sign up here
+            Sign in here
           </button>
         </p>
       </div>
@@ -172,4 +195,4 @@ function LoginPage({ onBack, onLoginSuccess, onRegisterClick }: LoginPageProps) 
   )
 }
 
-export default LoginPage
+export default RegistrationPage

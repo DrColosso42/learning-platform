@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
+import RegistrationPage from './pages/RegistrationPage'
 import DashboardPage from './pages/DashboardPage'
 import { AuthService } from './services/authService'
 
-type PageType = 'landing' | 'login' | 'dashboard'
+type PageType = 'landing' | 'login' | 'register' | 'dashboard'
 
 /**
  * Main application component
@@ -24,11 +25,17 @@ function App() {
   }, [])
 
   const navigateToLogin = () => setCurrentPage('login')
+  const navigateToRegister = () => setCurrentPage('register')
   const navigateToLanding = () => setCurrentPage('landing')
   const navigateToDashboard = () => setCurrentPage('dashboard')
 
   // Handle successful login
   const handleLoginSuccess = () => {
+    navigateToDashboard()
+  }
+
+  // Handle successful registration
+  const handleRegistrationSuccess = () => {
     navigateToDashboard()
   }
 
@@ -62,6 +69,13 @@ function App() {
         <LoginPage
           onBack={navigateToLanding}
           onLoginSuccess={handleLoginSuccess}
+          onRegisterClick={navigateToRegister}
+        />
+      )}
+      {currentPage === 'register' && (
+        <RegistrationPage
+          onBack={navigateToLogin}
+          onRegistrationSuccess={handleRegistrationSuccess}
         />
       )}
       {currentPage === 'dashboard' && (
