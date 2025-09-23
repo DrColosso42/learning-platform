@@ -1,16 +1,5 @@
 import { useState, useEffect } from 'react'
-
-interface Project {
-  id: number
-  name: string
-  description: string
-  questionsAnswered: number
-  totalQuestions: number
-  completionRatio: number
-  lastStudied: string | null
-  createdAt: string
-  isPublic: boolean
-}
+import { ProjectService, Project } from '../services/projectService'
 
 /**
  * Project management interface with CRUD operations
@@ -28,59 +17,21 @@ function ProjectManagement() {
   })
 
   useEffect(() => {
-    // TODO: Replace with actual API call
-    const mockProjects: Project[] = [
-      {
-        id: 1,
-        name: "JavaScript Fundamentals",
-        description: "Core JavaScript concepts including variables, functions, and objects",
-        questionsAnswered: 28,
-        totalQuestions: 50,
-        completionRatio: 0.56,
-        lastStudied: "2025-09-23T10:30:00Z",
-        createdAt: "2025-09-15T14:20:00Z",
-        isPublic: false
-      },
-      {
-        id: 2,
-        name: "React Concepts",
-        description: "Modern React development with hooks, context, and state management",
-        questionsAnswered: 15,
-        totalQuestions: 40,
-        completionRatio: 0.375,
-        lastStudied: "2025-09-22T16:45:00Z",
-        createdAt: "2025-09-18T09:15:00Z",
-        isPublic: true
-      },
-      {
-        id: 3,
-        name: "Database Design",
-        description: "SQL, database normalization, and query optimization",
-        questionsAnswered: 32,
-        totalQuestions: 35,
-        completionRatio: 0.914,
-        lastStudied: "2025-09-21T14:20:00Z",
-        createdAt: "2025-09-10T11:30:00Z",
-        isPublic: false
-      },
-      {
-        id: 4,
-        name: "TypeScript Basics",
-        description: "Type system, interfaces, and advanced TypeScript features",
-        questionsAnswered: 0,
-        totalQuestions: 25,
-        completionRatio: 0,
-        lastStudied: null,
-        createdAt: "2025-09-23T08:00:00Z",
-        isPublic: false
-      }
-    ]
-
-    setTimeout(() => {
-      setProjects(mockProjects)
-      setIsLoading(false)
-    }, 500)
+    loadProjects()
   }, [])
+
+  const loadProjects = async () => {
+    try {
+      setIsLoading(true)
+      const userProjects = await ProjectService.getUserProjects()
+      setProjects(userProjects)
+    } catch (error) {
+      console.error('Failed to load projects:', error)
+      setProjects([])
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target
@@ -90,33 +41,26 @@ function ProjectManagement() {
     }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (editingProject) {
-      // Update existing project
-      setProjects(prev => prev.map(p =>
-        p.id === editingProject.id
-          ? { ...p, ...formData }
-          : p
-      ))
-      setEditingProject(null)
-    } else {
-      // Create new project
-      const newProject: Project = {
-        id: Date.now(),
-        ...formData,
-        questionsAnswered: 0,
-        totalQuestions: 0,
-        completionRatio: 0,
-        lastStudied: null,
-        createdAt: new Date().toISOString()
+    try {
+      if (editingProject) {
+        // Update existing project
+        await ProjectService.updateProject(editingProject.id, formData)
+        setEditingProject(null)
+      } else {
+        // Create new project
+        await ProjectService.createProject(formData)
+        setShowCreateForm(false)
       }
-      setProjects(prev => [newProject, ...prev])
-      setShowCreateForm(false)
-    }
 
-    setFormData({ name: '', description: '', isPublic: false })
+      setFormData({ name: '', description: '', isPublic: false })
+      await loadProjects() // Reload projects to get updated data
+    } catch (error) {
+      console.error('Failed to save project:', error)
+      alert('Failed to save project. Please try again.')
+    }
   }
 
   const handleEdit = (project: Project) => {
@@ -129,9 +73,15 @@ function ProjectManagement() {
     setShowCreateForm(true)
   }
 
-  const handleDelete = (projectId: number) => {
+  const handleDelete = async (projectId: number) => {
     if (confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
-      setProjects(prev => prev.filter(p => p.id !== projectId))
+      try {
+        await ProjectService.deleteProject(projectId)
+        await loadProjects() // Reload projects after deletion
+      } catch (error) {
+        console.error('Failed to delete project:', error)
+        alert('Failed to delete project. Please try again.')
+      }
     }
   }
 

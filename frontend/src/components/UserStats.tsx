@@ -1,15 +1,5 @@
 import { useState, useEffect } from 'react'
-
-interface UserStatsData {
-  totalSessions: number
-  totalQuestions: number
-  averageRating: number
-  currentStreak: number
-  longestStreak: number
-  totalStudyTime: number // in minutes
-  projectsCompleted: number
-  totalProjects: number
-}
+import { StatisticsService, UserStatistics } from '../services/statisticsService'
 
 interface UserStatsProps {
   detailed?: boolean
@@ -20,27 +10,25 @@ interface UserStatsProps {
  * Displays key performance indicators and achievements
  */
 function UserStats({ detailed = false }: UserStatsProps) {
-  const [stats, setStats] = useState<UserStatsData | null>(null)
+  const [stats, setStats] = useState<UserStatistics | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // TODO: Replace with actual API call
-    const mockStats: UserStatsData = {
-      totalSessions: 47,
-      totalQuestions: 342,
-      averageRating: 4.1,
-      currentStreak: 5,
-      longestStreak: 12,
-      totalStudyTime: 1840, // ~30 hours
-      projectsCompleted: 3,
-      totalProjects: 8
-    }
-
-    setTimeout(() => {
-      setStats(mockStats)
-      setIsLoading(false)
-    }, 400)
+    loadUserStatistics()
   }, [])
+
+  const loadUserStatistics = async () => {
+    try {
+      setIsLoading(true)
+      const userStats = await StatisticsService.getUserStatistics()
+      setStats(userStats)
+    } catch (error) {
+      console.error('Failed to load user statistics:', error)
+      setStats(null)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const formatStudyTime = (minutes: number): string => {
     const hours = Math.floor(minutes / 60)

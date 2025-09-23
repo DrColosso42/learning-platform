@@ -1,60 +1,30 @@
 import { useState, useEffect } from 'react'
-
-interface StudySession {
-  id: number
-  projectName: string
-  questionSetName: string
-  questionsAnswered: number
-  totalQuestions: number
-  averageRating: number
-  completedAt: string
-}
+import { StatisticsService, RecentStudySession } from '../services/statisticsService'
 
 /**
  * Recent Studies component shows user's latest study sessions
  * Helps users quickly resume their learning activities
  */
 function RecentStudies() {
-  const [sessions, setSessions] = useState<StudySession[]>([])
+  const [sessions, setSessions] = useState<RecentStudySession[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // TODO: Replace with actual API call
-    const mockSessions: StudySession[] = [
-      {
-        id: 1,
-        projectName: "JavaScript Fundamentals",
-        questionSetName: "Variables & Types",
-        questionsAnswered: 8,
-        totalQuestions: 12,
-        averageRating: 4.2,
-        completedAt: "2025-09-23T10:30:00Z"
-      },
-      {
-        id: 2,
-        projectName: "React Concepts",
-        questionSetName: "Hooks & State",
-        questionsAnswered: 15,
-        totalQuestions: 20,
-        averageRating: 3.8,
-        completedAt: "2025-09-22T16:45:00Z"
-      },
-      {
-        id: 3,
-        projectName: "Database Design",
-        questionSetName: "SQL Joins",
-        questionsAnswered: 6,
-        totalQuestions: 10,
-        averageRating: 4.5,
-        completedAt: "2025-09-21T14:20:00Z"
-      }
-    ]
-
-    setTimeout(() => {
-      setSessions(mockSessions)
-      setIsLoading(false)
-    }, 500)
+    loadRecentSessions()
   }, [])
+
+  const loadRecentSessions = async () => {
+    try {
+      setIsLoading(true)
+      const recentSessions = await StatisticsService.getRecentSessions(5)
+      setSessions(recentSessions)
+    } catch (error) {
+      console.error('Failed to load recent sessions:', error)
+      setSessions([])
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const getCompletionPercentage = (answered: number, total: number) => {
     return Math.round((answered / total) * 100)

@@ -1,10 +1,5 @@
 import { useState, useEffect } from 'react'
-
-interface ActivityData {
-  date: string
-  count: number
-  level: 0 | 1 | 2 | 3 | 4 // 0 = no activity, 4 = most active
-}
+import { StatisticsService, ActivityData } from '../services/statisticsService'
 
 interface ActivityCalendarProps {
   detailed?: boolean
@@ -20,43 +15,21 @@ function ActivityCalendar({ detailed = false }: ActivityCalendarProps) {
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
 
   useEffect(() => {
-    // Generate mock activity data for the last 365 days
-    const generateActivityData = (): ActivityData[] => {
-      const data: ActivityData[] = []
-      const today = new Date()
-
-      for (let i = 364; i >= 0; i--) {
-        const date = new Date(today)
-        date.setDate(date.getDate() - i)
-
-        // Generate random activity levels with some patterns
-        let level: 0 | 1 | 2 | 3 | 4 = 0
-        const random = Math.random()
-
-        // Simulate lower activity on weekends
-        const isWeekend = date.getDay() === 0 || date.getDay() === 6
-        const weekendMultiplier = isWeekend ? 0.3 : 1
-
-        if (random * weekendMultiplier > 0.7) level = 4
-        else if (random * weekendMultiplier > 0.5) level = 3
-        else if (random * weekendMultiplier > 0.3) level = 2
-        else if (random * weekendMultiplier > 0.15) level = 1
-
-        data.push({
-          date: date.toISOString().split('T')[0],
-          count: level * Math.floor(Math.random() * 5) + level,
-          level
-        })
-      }
-
-      return data
-    }
-
-    setTimeout(() => {
-      setActivityData(generateActivityData())
-      setIsLoading(false)
-    }, 300)
+    loadActivityData()
   }, [])
+
+  const loadActivityData = async () => {
+    try {
+      setIsLoading(true)
+      const data = await StatisticsService.getActivityData(365)
+      setActivityData(data)
+    } catch (error) {
+      console.error('Failed to load activity data:', error)
+      setActivityData([])
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const getColorForLevel = (level: number): string => {
     const colors = {
