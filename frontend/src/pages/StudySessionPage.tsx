@@ -444,39 +444,106 @@ function StudySessionPage({ questionSetId, questionSetName, onBack }: StudySessi
             <div style={{
               display: 'flex',
               justifyContent: 'space-between',
-              alignItems: 'flex-start',
-              marginBottom: '1rem'
+              alignItems: 'center',
+              marginBottom: '1.5rem',
+              padding: '1rem',
+              backgroundColor: '#f8fafc',
+              borderRadius: '0.5rem',
+              border: '1px solid #e5e7eb'
             }}>
               <div style={{
-                fontSize: '1rem',
-                fontWeight: '600',
-                color: '#2563eb'
+                display: 'flex',
+                alignItems: 'center',
+                gap: '1rem'
               }}>
-                Question {questionNumber}
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '2.5rem',
+                  height: '2.5rem',
+                  borderRadius: '50%',
+                  backgroundColor: '#2563eb',
+                  color: 'white',
+                  fontSize: '1rem',
+                  fontWeight: 'bold'
+                }}>
+                  {questionNumber}
+                </div>
+                <div>
+                  <div style={{
+                    fontSize: '1.125rem',
+                    fontWeight: '600',
+                    color: '#1f2937'
+                  }}>
+                    Question {questionNumber}
+                  </div>
+                  <div style={{
+                    fontSize: '0.875rem',
+                    color: '#6b7280'
+                  }}>
+                    Question {questionNumber} of {progress?.totalQuestions}
+                  </div>
+                </div>
               </div>
+
               {previousScore && (
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '0.5rem',
-                  fontSize: '0.875rem',
-                  color: '#6b7280'
+                  gap: '0.75rem',
+                  padding: '0.5rem 1rem',
+                  backgroundColor: 'white',
+                  borderRadius: '0.5rem',
+                  border: '1px solid #d1d5db'
                 }}>
-                  Previous score:
-                  <span style={{
+                  <div style={{
+                    fontSize: '0.875rem',
+                    color: '#6b7280',
+                    fontWeight: '500'
+                  }}>
+                    Previous Score:
+                  </div>
+                  <div style={{
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    width: '2rem',
-                    height: '2rem',
+                    width: '2.25rem',
+                    height: '2.25rem',
                     borderRadius: '50%',
                     backgroundColor: getConfidenceColor(previousScore),
                     color: 'white',
-                    fontSize: '0.875rem',
-                    fontWeight: 'bold'
+                    fontSize: '1rem',
+                    fontWeight: 'bold',
+                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
                   }}>
                     {previousScore}
-                  </span>
+                  </div>
+                </div>
+              )}
+
+              {!previousScore && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.5rem 1rem',
+                  backgroundColor: '#fef3c7',
+                  borderRadius: '0.5rem',
+                  border: '1px solid #fcd34d'
+                }}>
+                  <div style={{
+                    fontSize: '1rem'
+                  }}>
+                    ⭐
+                  </div>
+                  <div style={{
+                    fontSize: '0.875rem',
+                    color: '#92400e',
+                    fontWeight: '500'
+                  }}>
+                    New Question
+                  </div>
                 </div>
               )}
             </div>

@@ -81,7 +81,7 @@ export class StudySessionService {
       },
     });
 
-    return newSession;
+    return newSession as StudySessionWithAnswers;
   }
 
   /**
@@ -185,8 +185,8 @@ export class StudySessionService {
       throw new Error('No active study session found');
     }
 
-    // Calculate attempt order (position in session)
-    const attemptOrder = session.sessionAnswers.length + 1;
+    // Calculate attempt order (position in session) - keeping for future use
+    // const attemptOrder = session.sessionAnswers.length + 1;
 
     // Record the answer
     await prisma.sessionAnswer.create({
@@ -239,8 +239,13 @@ export class StudySessionService {
   ): QuestionWithLastAttempt[] {
     const latestAttempts = new Map<number, { attempt: SessionAnswer; order: number }>();
 
-    // Find latest attempt for each question
-    sessionAnswers.forEach((answer, index) => {
+    // Sort answers by time to get proper chronological order
+    const sortedAnswers = [...sessionAnswers].sort((a, b) =>
+      a.answeredAt.getTime() - b.answeredAt.getTime()
+    );
+
+    // Find latest attempt for each question and track chronological order
+    sortedAnswers.forEach((answer, index) => {
       const existing = latestAttempts.get(answer.questionId);
       if (!existing || answer.answeredAt > existing.attempt.answeredAt) {
         latestAttempts.set(answer.questionId, { attempt: answer, order: index + 1 });
@@ -257,6 +262,7 @@ export class StudySessionService {
   /**
    * Weighted question selection algorithm
    * Weights: Rating 1 > New Question > Rating 2 > Rating 3 > Rating 4
+   * Recently answered questions get recency penalties but are never excluded
    */
   private selectNextQuestion(
     questions: QuestionWithLastAttempt[],
@@ -271,30 +277,33 @@ export class StudySessionService {
       return null;
     }
 
+    // Get answer sequence for recency penalties
+    const answerSequence = this.getAnswerSequence(questions);
+
     // Apply mode-specific filtering
-    let candidateQuestions: QuestionWithLastAttempt[];
+    let finalCandidates: QuestionWithLastAttempt[];
 
     if (mode === 'front-to-end') {
       // Find first unseen question by creation order (from the original ordered list)
-      const firstUnseenByOrder = questions.find(q => !q.lastAttempt);
+      const firstUnseenByOrder = questions.find(q => !q.lastAttempt && eligibleQuestions.includes(q));
 
       if (firstUnseenByOrder) {
         // Include first unseen (by creation order) + all seen questions with rating < 5
         const seenEligible = eligibleQuestions.filter(q => q.lastAttempt);
-        candidateQuestions = [firstUnseenByOrder, ...seenEligible];
+        finalCandidates = [firstUnseenByOrder, ...seenEligible];
       } else {
-        // No unseen questions, use all eligible (seen questions with rating < 5)
-        candidateQuestions = eligibleQuestions;
+        // No unseen questions, use all eligible candidates
+        finalCandidates = eligibleQuestions;
       }
     } else {
       // Shuffle mode: all eligible questions
-      candidateQuestions = eligibleQuestions;
+      finalCandidates = eligibleQuestions;
     }
 
     // Calculate weights for each candidate
-    const weightedQuestions: WeightedQuestion[] = candidateQuestions.map(question => ({
+    const weightedQuestions: WeightedQuestion[] = finalCandidates.map(question => ({
       question,
-      weight: this.calculateQuestionWeight(question, candidateQuestions.length),
+      weight: this.calculateQuestionWeight(question, answerSequence),
     }));
 
     // Select question using weighted random selection
@@ -302,11 +311,28 @@ export class StudySessionService {
   }
 
   /**
+   * Get the answer sequence in chronological order for recency penalty calculation
+   * Returns array of question IDs in the order they were answered
+   */
+  private getAnswerSequence(questions: QuestionWithLastAttempt[]): number[] {
+    // Get all questions that have been attempted, sorted by answer time (oldest first)
+    const attemptedQuestions = questions
+      .filter(q => q.lastAttempt)
+      .sort((a, b) => {
+        const timeA = a.lastAttempt?.answeredAt.getTime() || 0;
+        const timeB = b.lastAttempt?.answeredAt.getTime() || 0;
+        return timeA - timeB;
+      });
+
+    return attemptedQuestions.map(q => q.id);
+  }
+
+  /**
    * Calculate weight for a question based on confidence rating and recency
    */
   private calculateQuestionWeight(
     question: QuestionWithLastAttempt,
-    totalCandidates: number
+    answerSequence: number[]
   ): number {
     let baseWeight: number;
 
@@ -325,11 +351,36 @@ export class StudySessionService {
       baseWeight = ratingWeights[rating as keyof typeof ratingWeights] || 50;
     }
 
-    // Apply recency penalty (reduce weight based on how recently it was shown)
-    if (question.attemptOrder) {
-      const maxOrder = totalCandidates;
-      const recencyPenalty = Math.max(0.3, 1 - (maxOrder - question.attemptOrder) / maxOrder);
-      baseWeight *= recencyPenalty;
+    // Apply recency penalty based on position in answer sequence
+    const questionIndex = answerSequence.indexOf(question.id);
+    if (questionIndex !== -1) {
+      // Calculate how many steps back this question was answered
+      const stepsBack = answerSequence.length - questionIndex;
+
+      // Apply penalty based on recency (most recent = heaviest penalty)
+      let recencyMultiplier: number;
+
+      if (stepsBack === 1) {
+        // Just answered - cannot appear (0% chance)
+        recencyMultiplier = 0;
+      } else if (stepsBack === 2) {
+        // 2nd most recent - heavy penalty (50% reduction)
+        recencyMultiplier = 0.5;
+      } else if (stepsBack === 3) {
+        // 3rd most recent - medium penalty (70% of original weight)
+        recencyMultiplier = 0.7;
+      } else if (stepsBack === 4) {
+        // 4th most recent - light penalty (85% of original weight)
+        recencyMultiplier = 0.85;
+      } else if (stepsBack === 5) {
+        // 5th most recent - very light penalty (95% of original weight)
+        recencyMultiplier = 0.95;
+      } else {
+        // 6+ steps back - no penalty
+        recencyMultiplier = 1.0;
+      }
+
+      baseWeight *= recencyMultiplier;
     }
 
     return Math.max(1, baseWeight); // Ensure minimum weight of 1

@@ -117,6 +117,8 @@ export class StudySessionService {
 
     return {
       question: data.question,
+      questionNumber: data.questionNumber,
+      previousScore: data.previousScore,
       sessionComplete: data.sessionComplete,
       progress: data.progress,
     }
