@@ -6,7 +6,7 @@ import {
   NextQuestionResponse
 } from '../services/studySessionService'
 import { AuthService } from '../services/authService'
-import { Timer } from '../components/Timer'
+import { CompactTimer } from '../components/CompactTimer'
 
 interface StudySessionPageProps {
   questionSetId: number
@@ -231,8 +231,8 @@ function StudySessionPage({ questionSetId, questionSetName, onBack }: StudySessi
           </div>
         </div>
 
-        {/* Timer Component */}
-        <Timer
+        {/* Compact Timer Component - Fixed Position */}
+        <CompactTimer
           questionSetId={questionSetId}
           isVisible={hasActiveSession}
           onPhaseChange={(phase) => {
