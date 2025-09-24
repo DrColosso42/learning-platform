@@ -30,10 +30,29 @@ export interface ActivityData {
   level: 0 | 1 | 2 | 3 | 4
 }
 
+export interface TimeActivityData {
+  date: string
+  minutes: number
+  level: 0 | 1 | 2 | 3 | 4
+}
+
+export interface TimeStatistics {
+  totalStudyTimeMinutes: number
+  totalStudyTimeThisWeek: number
+  totalStudyTimeThisMonth: number
+  averageDailyStudyTime: number
+  longestStudyStreak: number
+}
+
 export interface DashboardData {
   statistics: UserStatistics
   recentSessions: RecentStudySession[]
   activityData: ActivityData[]
+}
+
+export interface EnhancedDashboardData extends DashboardData {
+  timeStats: TimeStatistics
+  timeActivityData: TimeActivityData[]
 }
 
 /**
@@ -126,6 +145,73 @@ export class StatisticsService {
 
     if (!response.ok) {
       throw new Error(data.error || 'Failed to fetch dashboard data')
+    }
+
+    return data
+  }
+
+  /**
+   * Get time-based activity data for calendar and graph
+   */
+  static async getTimeActivityData(days: number = 365): Promise<TimeActivityData[]> {
+    const authHeader = AuthService.getAuthHeader()
+    console.log('⏰ StatisticsService: Making request to /api/statistics/time-activity with auth:', !!authHeader.Authorization)
+
+    const response = await fetch(`${API_BASE_URL}/api/statistics/time-activity?days=${days}`, {
+      headers: {
+        ...authHeader,
+      },
+    })
+
+    const data = await response.json()
+    console.log('📈 StatisticsService: Time activity data response status:', response.status, 'data length:', data.timeActivityData?.length)
+    console.log('📈 StatisticsService: Time activity sample:', data.timeActivityData?.slice(-7)) // Last 7 days
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to fetch time activity data')
+    }
+
+    return data.timeActivityData
+  }
+
+  /**
+   * Get time-based statistics
+   */
+  static async getTimeStatistics(): Promise<TimeStatistics> {
+    const authHeader = AuthService.getAuthHeader()
+    console.log('⏰ StatisticsService: Making request to /api/statistics/time-stats with auth:', !!authHeader.Authorization)
+
+    const response = await fetch(`${API_BASE_URL}/api/statistics/time-stats`, {
+      headers: {
+        ...authHeader,
+      },
+    })
+
+    const data = await response.json()
+    console.log('📊 StatisticsService: Time stats response status:', response.status, 'data:', data)
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to fetch time statistics')
+    }
+
+    return data.timeStats
+  }
+
+  /**
+   * Get enhanced dashboard data with time tracking (more efficient)
+   */
+  static async getEnhancedDashboardData(): Promise<EnhancedDashboardData> {
+    const response = await fetch(`${API_BASE_URL}/api/statistics/enhanced-dashboard`, {
+      headers: {
+        ...AuthService.getAuthHeader(),
+      },
+    })
+
+    const data = await response.json()
+    console.log('🚀 StatisticsService: Enhanced dashboard response status:', response.status)
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to fetch enhanced dashboard data')
     }
 
     return data

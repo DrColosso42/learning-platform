@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { TimerService, TimerConfig } from '../services/timerService';
+import { TimerSessionService, TimerConfig } from '../services/timerSessionService';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -8,10 +8,10 @@ const prisma = new PrismaClient();
  * Controller for study session timer operations
  */
 export class TimerController {
-  private timerService: TimerService;
+  private timerSessionService: TimerSessionService;
 
   constructor() {
-    this.timerService = new TimerService();
+    this.timerSessionService = new TimerSessionService();
   }
 
   /**
@@ -31,10 +31,11 @@ export class TimerController {
 
       console.log('🎯 TimerController: Starting timer for questionSet', questionSetId, 'user', userId);
 
-      // Find the active session for this user and question set
-      const sessionId = await this.getActiveSessionId(userId, questionSetId);
+      // Find the active DECK session for this user and question set (this won't be modified)
+      const deckSessionId = await this.getActiveDeckSessionId(userId, questionSetId);
 
-      const timerState = await this.timerService.startTimer(sessionId, config);
+      // Use TimerSessionService to handle timer independently
+      const timerState = await this.timerSessionService.startTimer(deckSessionId, userId, config);
 
       res.json({
         success: true,
@@ -62,8 +63,8 @@ export class TimerController {
 
       console.log('⏸️ TimerController: Pausing timer for questionSet', questionSetId);
 
-      const sessionId = await this.getActiveSessionId(userId, questionSetId);
-      const timerState = await this.timerService.pauseTimer(sessionId);
+      const deckSessionId = await this.getActiveDeckSessionId(userId, questionSetId);
+      const timerState = await this.timerSessionService.pauseTimer(deckSessionId);
 
       res.json({
         success: true,
@@ -91,8 +92,8 @@ export class TimerController {
 
       console.log('➡️ TimerController: Advancing phase for questionSet', questionSetId);
 
-      const sessionId = await this.getActiveSessionId(userId, questionSetId);
-      const timerState = await this.timerService.advancePhase(sessionId);
+      const deckSessionId = await this.getActiveDeckSessionId(userId, questionSetId);
+      const timerState = await this.timerSessionService.advancePhase(deckSessionId);
 
       res.json({
         success: true,
@@ -120,8 +121,8 @@ export class TimerController {
 
       console.log('⏹️ TimerController: Stopping timer for questionSet', questionSetId);
 
-      const sessionId = await this.getActiveSessionId(userId, questionSetId);
-      const timerState = await this.timerService.stopTimer(sessionId);
+      const deckSessionId = await this.getActiveDeckSessionId(userId, questionSetId);
+      const timerState = await this.timerSessionService.stopTimer(deckSessionId);
 
       res.json({
         success: true,
@@ -147,8 +148,8 @@ export class TimerController {
       const questionSetId = parseInt(req.params.questionSetId);
       const userId = req.user.userId;
 
-      const sessionId = await this.getActiveSessionId(userId, questionSetId);
-      const timerState = await this.timerService.getTimerState(sessionId);
+      const deckSessionId = await this.getActiveDeckSessionId(userId, questionSetId);
+      const timerState = await this.timerSessionService.getTimerStateByDeckSession(deckSessionId);
 
       res.json({
         success: true,
@@ -174,8 +175,8 @@ export class TimerController {
       const questionSetId = parseInt(req.params.questionSetId);
       const userId = req.user.userId;
 
-      const sessionId = await this.getActiveSessionId(userId, questionSetId);
-      const stats = await this.timerService.getTimerStats(sessionId);
+      const deckSessionId = await this.getActiveDeckSessionId(userId, questionSetId);
+      const stats = await this.timerSessionService.getTimerStats(deckSessionId);
 
       res.json({
         success: true,
@@ -204,8 +205,8 @@ export class TimerController {
 
       console.log('⚙️ TimerController: Updating config for questionSet', questionSetId, 'with:', config);
 
-      const sessionId = await this.getActiveSessionId(userId, questionSetId);
-      const timerState = await this.timerService.updateConfig(sessionId, config);
+      const deckSessionId = await this.getActiveDeckSessionId(userId, questionSetId);
+      const timerState = await this.timerSessionService.updateConfig(deckSessionId, config);
 
       res.json({
         success: true,
@@ -218,12 +219,13 @@ export class TimerController {
   };
 
   /**
-   * Helper method to get active session ID for a user and question set
-   * Creates a new session if none exists
+   * Helper method to get active deck session ID for a user and question set
+   * Creates a new deck session if none exists (for deck studying only)
+   * This method is CRITICAL - it only handles deck progress, never timer data
    */
-  private async getActiveSessionId(userId: number, questionSetId: number): Promise<number> {
-    // First try to find an existing active session
-    let session = await prisma.studySession.findFirst({
+  private async getActiveDeckSessionId(userId: number, questionSetId: number): Promise<number> {
+    // First try to find an existing active deck session
+    let deckSession = await prisma.studySession.findFirst({
       where: {
         userId,
         questionSetId,
@@ -232,22 +234,23 @@ export class TimerController {
       select: { id: true }
     });
 
-    // If no active session exists, create a new one
-    if (!session) {
-      console.log('⚡ TimerController: Creating new session for questionSet', questionSetId, 'user', userId);
+    // If no active deck session exists, create a new one
+    if (!deckSession) {
+      console.log('📚 TimerController: Creating new DECK session for questionSet', questionSetId, 'user', userId);
 
-      const newSession = await prisma.studySession.create({
+      const newDeckSession = await prisma.studySession.create({
         data: {
           userId,
           questionSetId,
-          mode: 'front-to-end', // Default mode for timer-initiated sessions
+          mode: 'front-to-end', // Default mode for deck studying
         },
         select: { id: true }
       });
 
-      session = newSession;
+      deckSession = newDeckSession;
     }
 
-    return session.id;
+    console.log('✅ TimerController: Using deckSessionId', deckSession.id, '- deck progress will be preserved');
+    return deckSession.id;
   }
 }

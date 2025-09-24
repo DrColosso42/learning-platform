@@ -4,6 +4,7 @@ import RecentStudies from '../components/RecentStudies'
 import ProjectManagement from '../components/ProjectManagement'
 import ActivityCalendar from '../components/ActivityCalendar'
 import UserStats from '../components/UserStats'
+import TimeGraph from '../components/TimeGraph'
 import QuestionManagementPage from './QuestionManagementPage'
 import StudySessionPage from './StudySessionPage'
 import QuestionSetSelectionPage from './QuestionSetSelectionPage'
@@ -202,13 +203,19 @@ function DashboardPage() {
           )}
 
           {activeTab === 'stats' && (
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 2fr',
-              gap: '2rem'
-            }}>
-              <UserStats detailed />
-              <ActivityCalendar detailed />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+              {/* Time Graph - Main feature */}
+              <TimeGraph days={90} height={350} />
+
+              {/* Stats grid */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 2fr',
+                gap: '2rem'
+              }}>
+                <UserStats detailed />
+                <ActivityCalendar detailed />
+              </div>
             </div>
           )}
         </div>

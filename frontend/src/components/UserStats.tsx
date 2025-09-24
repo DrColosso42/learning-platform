@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { StatisticsService, UserStatistics } from '../services/statisticsService'
+import { StatisticsService, UserStatistics, TimeStatistics } from '../services/statisticsService'
 
 interface UserStatsProps {
   detailed?: boolean
@@ -11,6 +11,7 @@ interface UserStatsProps {
  */
 function UserStats({ detailed = false }: UserStatsProps) {
   const [stats, setStats] = useState<UserStatistics | null>(null)
+  const [timeStats, setTimeStats] = useState<TimeStatistics | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -21,12 +22,22 @@ function UserStats({ detailed = false }: UserStatsProps) {
     try {
       setIsLoading(true)
       console.log('🔍 UserStats: Loading user statistics...')
-      const userStats = await StatisticsService.getUserStatistics()
+
+      // Load both regular stats and time-based stats
+      const [userStats, userTimeStats] = await Promise.all([
+        StatisticsService.getUserStatistics(),
+        StatisticsService.getTimeStatistics()
+      ])
+
       console.log('✅ UserStats: Statistics loaded:', userStats)
+      console.log('✅ UserStats: Time statistics loaded:', userTimeStats)
+
       setStats(userStats)
+      setTimeStats(userTimeStats)
     } catch (error) {
       console.error('❌ UserStats: Failed to load user statistics:', error)
       setStats(null)
+      setTimeStats(null)
     } finally {
       setIsLoading(false)
     }
@@ -109,12 +120,31 @@ function UserStats({ detailed = false }: UserStatsProps) {
     }
   ]
 
+  // Enhanced detailed stats with time-based metrics
   const detailedStats = [
     {
       icon: '⏱️',
-      label: 'Study Time',
-      value: formatStudyTime(stats.totalStudyTime),
+      label: 'Total Study Time',
+      value: timeStats ? formatStudyTime(timeStats.totalStudyTimeMinutes) : formatStudyTime(stats.totalStudyTime),
       color: '#059669'
+    },
+    {
+      icon: '📅',
+      label: 'This Week',
+      value: timeStats ? formatStudyTime(timeStats.totalStudyTimeThisWeek) : '-',
+      color: '#3b82f6'
+    },
+    {
+      icon: '📆',
+      label: 'This Month',
+      value: timeStats ? formatStudyTime(timeStats.totalStudyTimeThisMonth) : '-',
+      color: '#8b5cf6'
+    },
+    {
+      icon: '📈',
+      label: 'Daily Average',
+      value: timeStats ? formatStudyTime(timeStats.averageDailyStudyTime) : '-',
+      color: '#06b6d4'
     },
     {
       icon: '🏆',
@@ -151,7 +181,7 @@ function UserStats({ detailed = false }: UserStatsProps) {
 
       <div style={{
         display: 'grid',
-        gridTemplateColumns: detailed ? 'repeat(2, 1fr)' : 'repeat(1, 1fr)',
+        gridTemplateColumns: detailed ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)',
         gap: '1rem'
       }}>
         {allStats.map((stat, index) => (

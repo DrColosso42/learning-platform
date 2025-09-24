@@ -28,6 +28,20 @@ export interface ActivityData {
   level: 0 | 1 | 2 | 3 | 4;
 }
 
+export interface TimeActivityData {
+  date: string;
+  minutes: number; // Study time in minutes for that day
+  level: 0 | 1 | 2 | 3 | 4;
+}
+
+export interface TimeStatistics {
+  totalStudyTimeMinutes: number;
+  totalStudyTimeThisWeek: number;
+  totalStudyTimeThisMonth: number;
+  averageDailyStudyTime: number;
+  longestStudyStreak: number;
+}
+
 /**
  * Statistics service for user analytics and progress tracking
  * Aggregates data from study sessions and projects
@@ -98,8 +112,9 @@ export class StatisticsService {
     // Calculate streaks
     const { currentStreak, longestStreak } = await this.calculateStreaks(userId);
 
-    // Estimate study time (assume 30 seconds per question on average)
-    const totalStudyTime = Math.round(totalQuestions * 0.5); // 0.5 minutes per question
+    // Calculate actual study time from sessions
+    const timeStats = await this.calculateActualStudyTime(userId);
+    const totalStudyTime = timeStats.totalStudyTimeMinutes;
 
     return {
       totalSessions,
@@ -302,5 +317,245 @@ export class StatisticsService {
     longestStreak = Math.max(longestStreak, tempStreak);
 
     return { currentStreak, longestStreak };
+  }
+
+  /**
+   * Calculate actual study time from timer sessions and session durations
+   */
+  private async calculateActualStudyTime(userId: number): Promise<TimeStatistics> {
+    console.log('⏰ StatisticsService: Calculating actual study time for user', userId);
+
+    const now = new Date();
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay()); // Sunday
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    // Get all deck sessions (StudySession) for the user
+    const deckSessions = await prisma.studySession.findMany({
+      where: { userId },
+      select: {
+        id: true,
+        startedAt: true,
+        completedAt: true,
+        timerSessions: {
+          select: {
+            id: true,
+            startedAt: true,
+            totalWorkTime: true,
+            totalRestTime: true,
+            currentPhase: true,
+            phaseStartedAt: true,
+          },
+        },
+      },
+    });
+
+    console.log('📊 TimeStats: Found', deckSessions.length, 'deck sessions with timer data');
+
+    let totalStudyTimeMinutes = 0;
+    let totalStudyTimeThisWeek = 0;
+    let totalStudyTimeThisMonth = 0;
+
+    deckSessions.forEach(deckSession => {
+      let sessionMinutes = 0;
+
+      // If deck session has timer sessions, aggregate their time
+      if (deckSession.timerSessions.length > 0) {
+        console.log(`  Deck session ${deckSession.id}: Found ${deckSession.timerSessions.length} timer sessions`);
+
+        deckSession.timerSessions.forEach(timerSession => {
+          // Include both work and rest time as "study time"
+          let timerMinutes = Math.round((timerSession.totalWorkTime + timerSession.totalRestTime) / 60);
+
+          // For active timer sessions, add current phase time
+          if (timerSession.currentPhase !== 'completed' && timerSession.currentPhase !== 'paused' && timerSession.phaseStartedAt) {
+            const currentPhaseTime = Math.floor((Date.now() - timerSession.phaseStartedAt.getTime()) / 1000);
+            timerMinutes += Math.round(currentPhaseTime / 60);
+          }
+
+          sessionMinutes += timerMinutes;
+          console.log(`    Timer session ${timerSession.id}: ${timerMinutes} minutes (work: ${timerSession.totalWorkTime}s, rest: ${timerSession.totalRestTime}s)`);
+        });
+      } else if (deckSession.completedAt && deckSession.startedAt) {
+        // For deck sessions without timer sessions, calculate based on start/end time
+        const sessionDuration = deckSession.completedAt.getTime() - deckSession.startedAt.getTime();
+        sessionMinutes = Math.round(sessionDuration / (1000 * 60));
+        console.log(`  Deck session ${deckSession.id}: No timer sessions, using duration ${sessionMinutes} minutes`);
+      } else if (!deckSession.completedAt && deckSession.startedAt) {
+        // For active deck sessions without timer sessions, calculate time since start
+        const sessionDuration = Date.now() - deckSession.startedAt.getTime();
+        sessionMinutes = Math.round(sessionDuration / (1000 * 60));
+        console.log(`  Deck session ${deckSession.id}: Active session without timer, ${sessionMinutes} minutes since start`);
+      }
+
+      totalStudyTimeMinutes += sessionMinutes;
+
+      // Add to weekly total if session started this week
+      if (deckSession.startedAt >= startOfWeek) {
+        totalStudyTimeThisWeek += sessionMinutes;
+      }
+
+      // Add to monthly total if session started this month
+      if (deckSession.startedAt >= startOfMonth) {
+        totalStudyTimeThisMonth += sessionMinutes;
+      }
+
+      console.log(`  Deck session ${deckSession.id}: Total ${sessionMinutes} minutes`);
+    });
+
+    // Calculate average daily study time (over last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(now.getDate() - 30);
+
+    const recentSessions = deckSessions.filter(s => s.startedAt >= thirtyDaysAgo);
+    const recentTotalMinutes = recentSessions.reduce((sum, deckSession) => {
+      let sessionMinutes = 0;
+
+      if (deckSession.timerSessions.length > 0) {
+        deckSession.timerSessions.forEach(timerSession => {
+          sessionMinutes += Math.round((timerSession.totalWorkTime + timerSession.totalRestTime) / 60);
+        });
+      } else if (deckSession.completedAt) {
+        const duration = deckSession.completedAt.getTime() - deckSession.startedAt.getTime();
+        sessionMinutes = Math.round(duration / (1000 * 60));
+      }
+      return sum + sessionMinutes;
+    }, 0);
+
+    const averageDailyStudyTime = Math.round(recentTotalMinutes / 30);
+
+    console.log('📈 TimeStats: Total study time:', totalStudyTimeMinutes, 'minutes');
+    console.log('📅 TimeStats: This week:', totalStudyTimeThisWeek, 'minutes');
+    console.log('📅 TimeStats: This month:', totalStudyTimeThisMonth, 'minutes');
+    console.log('📊 TimeStats: Daily average:', averageDailyStudyTime, 'minutes');
+
+    return {
+      totalStudyTimeMinutes,
+      totalStudyTimeThisWeek,
+      totalStudyTimeThisMonth,
+      averageDailyStudyTime,
+      longestStudyStreak: 0, // TODO: Implement streak calculation based on time
+    };
+  }
+
+  /**
+   * Get time-based activity data for calendar and graph visualization
+   */
+  async getTimeActivityData(userId: number, days: number = 365): Promise<TimeActivityData[]> {
+    console.log('⏰ TimeActivityData: Getting time activity for user', userId, 'for', days, 'days');
+
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(endDate.getDate() - days);
+
+    console.log('📅 TimeActivityData: Date range:', startDate.toISOString().split('T')[0], 'to', endDate.toISOString().split('T')[0]);
+
+    // Get deck sessions for the date range with their timer sessions
+    const deckSessions = await prisma.studySession.findMany({
+      where: {
+        userId,
+        startedAt: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      select: {
+        id: true,
+        startedAt: true,
+        completedAt: true,
+        timerSessions: {
+          select: {
+            id: true,
+            startedAt: true,
+            totalWorkTime: true,
+            totalRestTime: true,
+            currentPhase: true,
+            phaseStartedAt: true,
+          },
+        },
+      },
+    });
+
+    console.log('🎯 TimeActivityData: Found', deckSessions.length, 'deck sessions in date range');
+
+    // Group study time by date (in minutes)
+    const timeByDate = new Map<string, number>();
+    deckSessions.forEach((deckSession, sessionIndex) => {
+      const sessionDate = deckSession.startedAt.toISOString().split('T')[0];
+      let sessionMinutes = 0;
+
+      // Calculate session time based on timer sessions
+      if (deckSession.timerSessions.length > 0) {
+        console.log(`  Deck session ${deckSession.id}: Processing ${deckSession.timerSessions.length} timer sessions`);
+
+        deckSession.timerSessions.forEach(timerSession => {
+          let timerMinutes = Math.round((timerSession.totalWorkTime + timerSession.totalRestTime) / 60);
+
+          // Add current phase time for active timer sessions
+          if (timerSession.currentPhase !== 'completed' && timerSession.currentPhase !== 'paused' && timerSession.phaseStartedAt) {
+            const currentPhaseTime = Math.floor((Date.now() - timerSession.phaseStartedAt.getTime()) / 1000);
+            timerMinutes += Math.round(currentPhaseTime / 60);
+          }
+
+          sessionMinutes += timerMinutes;
+        });
+      } else if (deckSession.completedAt) {
+        // For deck sessions without timer sessions, use duration
+        const duration = deckSession.completedAt.getTime() - deckSession.startedAt.getTime();
+        sessionMinutes = Math.round(duration / (1000 * 60));
+      } else {
+        // Active deck session without timer - calculate time since start
+        const duration = Date.now() - deckSession.startedAt.getTime();
+        sessionMinutes = Math.round(duration / (1000 * 60));
+      }
+
+      console.log(`  Deck session ${sessionIndex + 1}: id=${deckSession.id}, date=${sessionDate}, time=${sessionMinutes}min`);
+      timeByDate.set(sessionDate, (timeByDate.get(sessionDate) || 0) + sessionMinutes);
+    });
+
+    console.log('📊 TimeActivityData: Time by date:', Array.from(timeByDate.entries()));
+
+    // Generate time activity data for all days
+    const timeActivityData: TimeActivityData[] = [];
+    console.log('🔄 TimeActivityData: Generating time activity array for', days, 'days');
+
+    for (let i = 0; i < days; i++) {
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + i);
+      const dateStr = date.toISOString().split('T')[0];
+
+      const minutes = timeByDate.get(dateStr) || 0;
+      let level: 0 | 1 | 2 | 3 | 4 = 0;
+
+      // Convert minutes to activity level (0-4) based on study time
+      if (minutes >= 120) level = 4;      // 2+ hours
+      else if (minutes >= 60) level = 3;  // 1-2 hours
+      else if (minutes >= 30) level = 2;  // 30-60 minutes
+      else if (minutes >= 10) level = 1;  // 10-30 minutes
+      // else level = 0 (less than 10 minutes)
+
+      if (minutes > 0) {
+        console.log(`📍 TimeActivityData: Day ${i}: ${dateStr} = ${minutes} minutes, level ${level}`);
+      }
+
+      timeActivityData.push({
+        date: dateStr,
+        minutes,
+        level,
+      });
+    }
+
+    console.log('✅ TimeActivityData: Generated', timeActivityData.length, 'days, non-zero days:', timeActivityData.filter(d => d.minutes > 0).length);
+
+    return timeActivityData;
+  }
+
+  /**
+   * Get enhanced time statistics for dashboard
+   */
+  async getTimeStatistics(userId: number): Promise<TimeStatistics> {
+    return this.calculateActualStudyTime(userId);
   }
 }

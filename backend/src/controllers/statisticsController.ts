@@ -113,4 +113,89 @@ export class StatisticsController {
       res.status(500).json({ error: 'Internal server error' });
     }
   };
+
+  /**
+   * Get time-based statistics
+   * GET /api/statistics/time-stats
+   */
+  getTimeStatistics = async (req: Request, res: Response): Promise<void> => {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'User not authenticated' });
+        return;
+      }
+
+      console.log('⏰ StatisticsController: Getting time statistics for user ID:', req.user.userId);
+      const timeStats = await this.statisticsService.getTimeStatistics(req.user.userId);
+      console.log('📊 StatisticsController: Returning time statistics:', timeStats);
+
+      res.json({ timeStats });
+    } catch (error) {
+      console.error('Get time statistics error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  };
+
+  /**
+   * Get time-based activity data for calendar and graph
+   * GET /api/statistics/time-activity
+   */
+  getTimeActivityData = async (req: Request, res: Response): Promise<void> => {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'User not authenticated' });
+        return;
+      }
+
+      const days = parseInt(req.query.days as string) || 365;
+      const timeActivityData = await this.statisticsService.getTimeActivityData(req.user.userId, days);
+
+      console.log('📤 StatisticsController: Sending time activity data response:', {
+        timeActivityDataLength: timeActivityData.length,
+        totalDays: days,
+        sampleData: timeActivityData.slice(0, 3),
+        nonZeroTimeDays: timeActivityData.filter(d => d.minutes > 0)
+      });
+
+      res.json({
+        timeActivityData,
+        totalDays: days
+      });
+    } catch (error) {
+      console.error('Get time activity data error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  };
+
+  /**
+   * Get enhanced dashboard data with time tracking
+   * GET /api/statistics/enhanced-dashboard
+   */
+  getEnhancedDashboardData = async (req: Request, res: Response): Promise<void> => {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'User not authenticated' });
+        return;
+      }
+
+      const [statistics, recentSessions, activityData, timeStats, timeActivityData] = await Promise.all([
+        this.statisticsService.getUserStatistics(req.user.userId),
+        this.statisticsService.getRecentStudySessions(req.user.userId, 5),
+        this.statisticsService.getActivityData(req.user.userId, 365),
+        this.statisticsService.getTimeStatistics(req.user.userId),
+        this.statisticsService.getTimeActivityData(req.user.userId, 365),
+      ]);
+
+      res.json({
+        statistics,
+        recentSessions,
+        activityData,
+        timeStats,
+        timeActivityData,
+      });
+    } catch (error) {
+      console.error('Get enhanced dashboard data error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  };
 }

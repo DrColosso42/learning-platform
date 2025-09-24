@@ -18,5 +18,10 @@ export const createStatisticsRoutes = (): Router => {
   router.get('/activity', statisticsController.getActivityData);
   router.get('/dashboard', statisticsController.getDashboardData);
 
+  // Time-based statistics endpoints
+  router.get('/time-stats', statisticsController.getTimeStatistics);
+  router.get('/time-activity', statisticsController.getTimeActivityData);
+  router.get('/enhanced-dashboard', statisticsController.getEnhancedDashboardData);
+
   return router;
 };
