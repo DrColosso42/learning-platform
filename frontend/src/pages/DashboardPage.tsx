@@ -56,6 +56,10 @@ function DashboardPage() {
     setStudySession({ questionSetId, questionSetName })
   }
 
+  const handleResumeStudy = (questionSetId: number, questionSetName: string) => {
+    setStudySession({ questionSetId, questionSetName })
+  }
+
   const handleBackFromStudy = () => {
     setStudySession(null)
     setActiveTab('projects') // Go back to projects tab
@@ -184,7 +188,7 @@ function DashboardPage() {
               gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
               gap: '2rem'
             }}>
-              <RecentStudies />
+              <RecentStudies onResumeStudy={handleResumeStudy} />
               <ActivityCalendar />
               <UserStats />
             </div>

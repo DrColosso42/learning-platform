@@ -15,6 +15,7 @@ export interface UserStatistics {
 
 export interface RecentStudySession {
   id: number
+  questionSetId: number
   projectName: string
   questionSetName: string
   questionsAnswered: number
@@ -44,13 +45,17 @@ export class StatisticsService {
    * Get comprehensive user statistics
    */
   static async getUserStatistics(): Promise<UserStatistics> {
+    const authHeader = AuthService.getAuthHeader()
+    console.log('🔍 StatisticsService: Making request to /api/statistics/overview with auth:', !!authHeader.Authorization)
+
     const response = await fetch(`${API_BASE_URL}/api/statistics/overview`, {
       headers: {
-        ...AuthService.getAuthHeader(),
+        ...authHeader,
       },
     })
 
     const data = await response.json()
+    console.log('📊 StatisticsService: Response status:', response.status, 'data:', data)
 
     if (!response.ok) {
       throw new Error(data.error || 'Failed to fetch statistics')
@@ -63,13 +68,17 @@ export class StatisticsService {
    * Get recent study sessions
    */
   static async getRecentSessions(limit: number = 10): Promise<RecentStudySession[]> {
+    const authHeader = AuthService.getAuthHeader()
+    console.log('🔍 StatisticsService: Making request to /api/statistics/recent-sessions with auth:', !!authHeader.Authorization)
+
     const response = await fetch(`${API_BASE_URL}/api/statistics/recent-sessions?limit=${limit}`, {
       headers: {
-        ...AuthService.getAuthHeader(),
+        ...authHeader,
       },
     })
 
     const data = await response.json()
+    console.log('📚 StatisticsService: Recent sessions response status:', response.status, 'data:', data)
 
     if (!response.ok) {
       throw new Error(data.error || 'Failed to fetch recent sessions')
@@ -82,13 +91,19 @@ export class StatisticsService {
    * Get activity data for calendar
    */
   static async getActivityData(days: number = 365): Promise<ActivityData[]> {
+    const authHeader = AuthService.getAuthHeader()
+    console.log('🔍 StatisticsService: Making request to /api/statistics/activity with auth:', !!authHeader.Authorization)
+
     const response = await fetch(`${API_BASE_URL}/api/statistics/activity?days=${days}`, {
       headers: {
-        ...AuthService.getAuthHeader(),
+        ...authHeader,
       },
     })
 
     const data = await response.json()
+    console.log('📅 StatisticsService: Activity data response status:', response.status, 'data length:', data.activityData?.length)
+    console.log('📅 StatisticsService: Full response data:', JSON.stringify(data, null, 2))
+    console.log('📅 StatisticsService: Activity data sample:', data.activityData?.slice(0, 3))
 
     if (!response.ok) {
       throw new Error(data.error || 'Failed to fetch activity data')

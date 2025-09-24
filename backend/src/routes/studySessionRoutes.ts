@@ -1,5 +1,6 @@
 import express from 'express';
 import { StudySessionController } from '../controllers/studySessionController.js';
+import { TimerController } from '../controllers/timerController.js';
 import { authenticateToken } from '../middleware/authMiddleware.js';
 
 /**
@@ -9,6 +10,7 @@ import { authenticateToken } from '../middleware/authMiddleware.js';
 export function createStudySessionRoutes(): express.Router {
   const router = express.Router();
   const studySessionController = new StudySessionController();
+  const timerController = new TimerController();
 
   // Apply authentication to all routes
   router.use(authenticateToken);
@@ -30,6 +32,29 @@ export function createStudySessionRoutes(): express.Router {
 
   // Restart session with new mode
   router.post('/:questionSetId/restart', studySessionController.restartSession);
+
+  // === TIMER ROUTES ===
+
+  // Start or resume timer for a session
+  router.post('/:questionSetId/timer/start', timerController.startTimer);
+
+  // Pause timer for a session
+  router.post('/:questionSetId/timer/pause', timerController.pauseTimer);
+
+  // Advance to next phase (work -> rest -> work)
+  router.post('/:questionSetId/timer/advance', timerController.advancePhase);
+
+  // Stop timer and complete session
+  router.post('/:questionSetId/timer/stop', timerController.stopTimer);
+
+  // Get current timer state
+  router.get('/:questionSetId/timer', timerController.getTimerState);
+
+  // Get timer statistics for a session
+  router.get('/:questionSetId/timer/stats', timerController.getTimerStats);
+
+  // Update timer configuration
+  router.put('/:questionSetId/timer/config', timerController.updateConfig);
 
   return router;
 }

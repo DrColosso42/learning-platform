@@ -23,7 +23,9 @@ export class StatisticsController {
         return;
       }
 
+      console.log('🔍 StatisticsController: Getting statistics for user ID:', req.user.userId);
       const statistics = await this.statisticsService.getUserStatistics(req.user.userId);
+      console.log('📊 StatisticsController: Returning statistics:', statistics);
 
       res.json({ statistics });
     } catch (error) {
@@ -66,6 +68,13 @@ export class StatisticsController {
 
       const days = parseInt(req.query.days as string) || 365;
       const activityData = await this.statisticsService.getActivityData(req.user.userId, days);
+
+      console.log('📤 StatisticsController: Sending activity data response:', {
+        activityDataLength: activityData.length,
+        totalDays: days,
+        sampleData: activityData.slice(0, 3),
+        nonZeroDays: activityData.filter(d => d.count > 0)
+      });
 
       res.json({
         activityData,

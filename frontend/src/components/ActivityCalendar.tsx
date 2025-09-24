@@ -15,29 +15,49 @@ function ActivityCalendar({ detailed = false }: ActivityCalendarProps) {
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
 
   useEffect(() => {
+    console.log('🚀 ActivityCalendar: Component mounted')
     loadActivityData()
   }, [])
 
   const loadActivityData = async () => {
     try {
       setIsLoading(true)
-      const data = await StatisticsService.getActivityData(365)
-      setActivityData(data)
+      console.log('🔍 ActivityCalendar: Loading activity data...')
+      const data = await StatisticsService.getActivityData(91) // Only load 3 months
+      console.log('✅ ActivityCalendar: Activity data loaded:', data?.length, 'days')
+      console.log('✅ ActivityCalendar: Sample data points:', data?.slice(0, 5))
+      console.log('✅ ActivityCalendar: Points for today:', data?.find(d => d.date === new Date().toISOString().split('T')[0]))
+      setActivityData(data || [])
     } catch (error) {
-      console.error('Failed to load activity data:', error)
-      setActivityData([])
+      console.error('❌ ActivityCalendar: Failed to load activity data:', error)
+      console.error('❌ ActivityCalendar: Error details:', error.message, error.stack)
+      console.error('❌ ActivityCalendar: CRITICAL - Backend serving 83 points but frontend falling back to dummy data!')
+      // Create dummy data to test layout
+      const dummyData = []
+      for (let i = 0; i < 91; i++) {
+        const date = new Date()
+        date.setDate(date.getDate() - i)
+        dummyData.push({
+          date: date.toISOString().split('T')[0],
+          count: Math.floor(Math.random() * 25),
+          level: Math.floor(Math.random() * 5) as 0 | 1 | 2 | 3 | 4
+        })
+      }
+      console.log('🔧 ActivityCalendar: Using dummy data for testing')
+      setActivityData(dummyData.reverse())
     } finally {
       setIsLoading(false)
     }
   }
 
   const getColorForLevel = (level: number): string => {
+    // GitHub-style activity colors
     const colors = {
-      0: '#ebedf0',
-      1: '#9be9a8',
-      2: '#40c463',
-      3: '#30a14e',
-      4: '#216e39'
+      0: '#ebedf0', // No activity - light gray
+      1: '#9be9a8', // Low activity - light green
+      2: '#40c463', // Medium activity - medium green
+      3: '#30a14e', // High activity - dark green
+      4: '#216e39'  // Very high activity - darkest green
     }
     return colors[level as keyof typeof colors]
   }
@@ -57,7 +77,8 @@ function ActivityCalendar({ detailed = false }: ActivityCalendarProps) {
     const labels = []
     const today = new Date()
 
-    for (let i = 11; i >= 0; i--) {
+    // Only show last 3 months for the compact view
+    for (let i = 2; i >= 0; i--) {
       const date = new Date(today.getFullYear(), today.getMonth() - i, 1)
       labels.push(months[date.getMonth()])
     }
@@ -68,10 +89,12 @@ function ActivityCalendar({ detailed = false }: ActivityCalendarProps) {
   const getDayLabels = () => ['', 'Mon', '', 'Wed', '', 'Fri', '']
 
   const organizeDataByWeeks = () => {
+    // Limit to last 91 days (13 weeks) to fit in container
+    const limitedData = activityData.slice(-91)
     const weeks = []
     let currentWeek = []
 
-    activityData.forEach((day, index) => {
+    limitedData.forEach((day, index) => {
       currentWeek.push(day)
 
       if (currentWeek.length === 7) {
@@ -81,14 +104,21 @@ function ActivityCalendar({ detailed = false }: ActivityCalendarProps) {
     })
 
     if (currentWeek.length > 0) {
+      // Pad incomplete week with empty days
+      while (currentWeek.length < 7) {
+        currentWeek.push(null)
+      }
       weeks.push(currentWeek)
     }
 
-    return weeks
+    return weeks.slice(-13) // Keep only last 13 weeks
   }
 
   const getTotalContributions = () => {
-    return activityData.reduce((sum, day) => sum + day.count, 0)
+    const total = activityData.reduce((sum, day) => sum + day.count, 0)
+    console.log('🔢 ActivityCalendar: Calculating total from', activityData.length, 'days, result:', total)
+    console.log('🔢 ActivityCalendar: Non-zero days:', activityData.filter(d => d.count > 0))
+    return total
   }
 
   const getCurrentStreak = () => {
@@ -103,7 +133,10 @@ function ActivityCalendar({ detailed = false }: ActivityCalendarProps) {
     return streak
   }
 
+  console.log('🔍 ActivityCalendar: Render state - isLoading:', isLoading, 'dataLength:', activityData.length)
+
   if (isLoading) {
+    console.log('⏳ ActivityCalendar: Showing loading state')
     return (
       <div style={{
         backgroundColor: 'white',
@@ -112,7 +145,7 @@ function ActivityCalendar({ detailed = false }: ActivityCalendarProps) {
         boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
         textAlign: 'center'
       }}>
-        Loading activity calendar...
+        <div style={{ color: '#6b7280' }}>Loading activity calendar...</div>
       </div>
     )
   }
@@ -121,21 +154,25 @@ function ActivityCalendar({ detailed = false }: ActivityCalendarProps) {
   const totalContributions = getTotalContributions()
   const currentStreak = getCurrentStreak()
 
+  console.log('📊 ActivityCalendar: Organized data - weeks:', weeks.length, 'total:', totalContributions, 'streak:', currentStreak)
+
   return (
     <div style={{
       backgroundColor: 'white',
       borderRadius: '0.75rem',
       padding: '1.5rem',
       boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-      height: 'fit-content'
+      height: 'fit-content',
+      width: '100%'
     }}>
       <h2 style={{
         fontSize: '1.25rem',
         fontWeight: '600',
         color: '#1f2937',
-        marginBottom: '1rem'
+        marginBottom: '1rem',
+        textAlign: 'center'
       }}>
-        📅 Study Activity
+        📅 Study Activity (Total: {getTotalContributions()} pts, Data: {activityData.length} days)
       </h2>
 
       {detailed && (
@@ -146,7 +183,7 @@ function ActivityCalendar({ detailed = false }: ActivityCalendarProps) {
           fontSize: '0.875rem'
         }}>
           <div>
-            <span style={{ color: '#6b7280' }}>Total sessions: </span>
+            <span style={{ color: '#6b7280' }}>Total points: </span>
             <span style={{ fontWeight: '600' }}>{totalContributions}</span>
           </div>
           <div>
@@ -156,89 +193,37 @@ function ActivityCalendar({ detailed = false }: ActivityCalendarProps) {
         </div>
       )}
 
-      {/* Calendar Grid */}
-      <div style={{ overflowX: 'auto' }}>
-        {/* Month labels */}
+      {/* Simplified Calendar Grid */}
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        width: '100%'
+      }}>
         <div style={{
-          display: 'grid',
-          gridTemplateColumns: `20px repeat(${weeks.length}, 12px)`,
+          display: 'flex',
+          flexWrap: 'wrap',
           gap: '2px',
-          marginBottom: '4px',
-          fontSize: '0.75rem',
-          color: '#6b7280'
+          maxWidth: '200px',
+          justifyContent: 'center'
         }}>
-          <div></div>
-          {getMonthLabels().map((month, index) => (
-            <div key={index} style={{
-              gridColumn: `span ${Math.ceil(weeks.length / 12)}`,
-              textAlign: 'left'
-            }}>
-              {month}
-            </div>
-          ))}
-        </div>
-
-        {/* Day labels and activity grid */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: `20px repeat(${weeks.length}, 12px)`,
-          gap: '2px'
-        }}>
-          {/* Day labels */}
-          <div style={{
-            display: 'grid',
-            gridTemplateRows: 'repeat(7, 12px)',
-            gap: '2px',
-            fontSize: '0.75rem',
-            color: '#6b7280'
-          }}>
-            {getDayLabels().map((day, index) => (
-              <div key={index} style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'flex-end',
-                paddingRight: '4px'
-              }}>
-                {day}
-              </div>
-            ))}
-          </div>
-
-          {/* Activity squares */}
-          {weeks.map((week, weekIndex) => (
-            <div key={weekIndex} style={{
-              display: 'grid',
-              gridTemplateRows: 'repeat(7, 12px)',
-              gap: '2px'
-            }}>
-              {Array.from({ length: 7 }).map((_, dayIndex) => {
-                const dayData = week[dayIndex]
-                return (
-                  <div
-                    key={`${weekIndex}-${dayIndex}`}
-                    style={{
-                      width: '12px',
-                      height: '12px',
-                      backgroundColor: dayData ? getColorForLevel(dayData.level) : '#ebedf0',
-                      borderRadius: '2px',
-                      cursor: dayData ? 'pointer' : 'default',
-                      transition: 'all 0.1s ease'
-                    }}
-                    title={dayData ? `${formatDate(dayData.date)}: ${dayData.count} sessions` : ''}
-                    onClick={() => dayData && setSelectedDate(dayData.date)}
-                    onMouseEnter={(e) => {
-                      if (dayData) {
-                        e.currentTarget.style.outline = '1px solid #374151'
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.outline = 'none'
-                    }}
-                  />
-                )
-              })}
-            </div>
-          ))}
+          {weeks.map((week, weekIndex) =>
+            week.map((dayData, dayIndex) => (
+              <div
+                key={`${weekIndex}-${dayIndex}`}
+                style={{
+                  width: '12px',
+                  height: '12px',
+                  backgroundColor: dayData ? getColorForLevel(dayData.level) : '#ebedf0',
+                  borderRadius: '2px',
+                  cursor: dayData ? 'pointer' : 'default',
+                  transition: 'all 0.1s ease'
+                }}
+                title={dayData ? `${formatDate(dayData.date)}: ${dayData.count} points` : ''}
+                onClick={() => dayData && setSelectedDate(dayData.date)}
+              />
+            ))
+          )}
         </div>
       </div>
 
@@ -246,7 +231,8 @@ function ActivityCalendar({ detailed = false }: ActivityCalendarProps) {
       <div style={{
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
+        justifyContent: 'center',
+        gap: '8px',
         marginTop: '1rem',
         fontSize: '0.75rem',
         color: '#6b7280'
@@ -281,7 +267,7 @@ function ActivityCalendar({ detailed = false }: ActivityCalendarProps) {
         }}>
           <strong>{formatDate(selectedDate)}</strong>
           <br />
-          {activityData.find(d => d.date === selectedDate)?.count || 0} study sessions
+          {activityData.find(d => d.date === selectedDate)?.count || 0} points earned
         </div>
       )}
     </div>

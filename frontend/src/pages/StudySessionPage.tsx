@@ -6,6 +6,7 @@ import {
   NextQuestionResponse
 } from '../services/studySessionService'
 import { AuthService } from '../services/authService'
+import { Timer } from '../components/Timer'
 
 interface StudySessionPageProps {
   questionSetId: number
@@ -229,6 +230,18 @@ function StudySessionPage({ questionSetId, questionSetName, onBack }: StudySessi
             </p>
           </div>
         </div>
+
+        {/* Timer Component */}
+        <Timer
+          questionSetId={questionSetId}
+          isVisible={hasActiveSession}
+          onPhaseChange={(phase) => {
+            console.log('Timer phase changed to:', phase);
+          }}
+          onCycleComplete={(cycles) => {
+            console.log('Completed cycles:', cycles);
+          }}
+        />
 
         {/* Progress Bar */}
         {progress && (

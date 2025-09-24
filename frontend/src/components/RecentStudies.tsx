@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react'
 import { StatisticsService, RecentStudySession } from '../services/statisticsService'
 
+interface RecentStudiesProps {
+  onResumeStudy?: (questionSetId: number, questionSetName: string) => void
+}
+
 /**
  * Recent Studies component shows user's latest study sessions
  * Helps users quickly resume their learning activities
  */
-function RecentStudies() {
+function RecentStudies({ onResumeStudy }: RecentStudiesProps) {
   const [sessions, setSessions] = useState<RecentStudySession[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
@@ -16,10 +20,12 @@ function RecentStudies() {
   const loadRecentSessions = async () => {
     try {
       setIsLoading(true)
+      console.log('🔍 RecentStudies: Loading recent sessions...')
       const recentSessions = await StatisticsService.getRecentSessions(5)
+      console.log('✅ RecentStudies: Sessions loaded:', recentSessions)
       setSessions(recentSessions)
     } catch (error) {
-      console.error('Failed to load recent sessions:', error)
+      console.error('❌ RecentStudies: Failed to load recent sessions:', error)
       setSessions([])
     } finally {
       setIsLoading(false)
@@ -107,6 +113,11 @@ function RecentStudies() {
                 padding: '1rem',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease'
+              }}
+              onClick={() => {
+                if (onResumeStudy) {
+                  onResumeStudy(session.questionSetId, session.questionSetName)
+                }
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.borderColor = '#d1d5db'

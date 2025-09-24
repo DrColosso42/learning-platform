@@ -20,10 +20,12 @@ function UserStats({ detailed = false }: UserStatsProps) {
   const loadUserStatistics = async () => {
     try {
       setIsLoading(true)
+      console.log('🔍 UserStats: Loading user statistics...')
       const userStats = await StatisticsService.getUserStatistics()
+      console.log('✅ UserStats: Statistics loaded:', userStats)
       setStats(userStats)
     } catch (error) {
-      console.error('Failed to load user statistics:', error)
+      console.error('❌ UserStats: Failed to load user statistics:', error)
       setStats(null)
     } finally {
       setIsLoading(false)
