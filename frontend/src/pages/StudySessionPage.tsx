@@ -33,6 +33,7 @@ function StudySessionPage({ questionSetId, questionSetName, onBack }: StudySessi
   const [selectedMode, setSelectedMode] = useState<'front-to-end' | 'shuffle'>('front-to-end')
   const [isSidebarOpen, setIsSidebarOpen] = useState(true) // Default open on desktop
   const [sidebarRefreshTrigger, setSidebarRefreshTrigger] = useState(0)
+  const [hypotheticalRating, setHypotheticalRating] = useState<number | null>(null)
 
   useEffect(() => {
     checkSessionStatus()
@@ -114,6 +115,7 @@ function StudySessionPage({ questionSetId, questionSetName, onBack }: StudySessi
       setSessionComplete(response.sessionComplete)
       setShowAnswer(false)
       setSelectedRating(null)
+      setHypotheticalRating(null)
     } catch (error) {
       console.error('Failed to load next question:', error)
       alert('Failed to load next question. Please try again.')
@@ -168,6 +170,7 @@ function StudySessionPage({ questionSetId, questionSetName, onBack }: StudySessi
       setSessionComplete(response.sessionComplete)
       setSelectedRating(null)
       setShowAnswer(false)
+      setHypotheticalRating(null)
 
       // Refresh sidebar to update current question highlighting
       setSidebarRefreshTrigger(prev => prev + 1)
@@ -181,6 +184,12 @@ function StudySessionPage({ questionSetId, questionSetName, onBack }: StudySessi
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleRatingSelect = (rating: number | null) => {
+    if (!currentQuestion || !hasActiveSession) return
+
+    setHypotheticalRating(rating)
   }
 
   const restartSession = async () => {
@@ -238,6 +247,8 @@ function StudySessionPage({ questionSetId, questionSetName, onBack }: StudySessi
         onQuestionSelect={handleQuestionSelect}
         currentQuestionId={currentQuestion?.id || null}
         refreshTrigger={sidebarRefreshTrigger}
+        hypotheticalQuestionId={currentQuestion?.id || null}
+        hypotheticalRating={hypotheticalRating}
       />
 
       <div className="container">
@@ -695,7 +706,10 @@ function StudySessionPage({ questionSetId, questionSetName, onBack }: StudySessi
                     {[1, 2, 3, 4, 5].map(rating => (
                       <button
                         key={rating}
-                        onClick={() => setSelectedRating(rating)}
+                        onClick={() => {
+                          setSelectedRating(rating)
+                          handleRatingSelect(rating)
+                        }}
                         style={{
                           width: '4rem',
                           height: '4rem',

@@ -273,4 +273,34 @@ export class StudySessionService {
       progress: data.progress,
     }
   }
+
+  /**
+   * Get questions with hypothetical probabilities for live updates
+   */
+  static async getQuestionsWithHypotheticalProbabilities(
+    questionSetId: number,
+    questionId: number,
+    hypotheticalRating: number
+  ): Promise<QuestionsWithProbabilitiesResponse> {
+    const response = await fetch(`${API_BASE_URL}/api/study-sessions/${questionSetId}/hypothetical-probabilities`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...AuthService.getAuthHeader(),
+      },
+      body: JSON.stringify({ questionId, hypotheticalRating }),
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to get hypothetical probabilities')
+    }
+
+    return {
+      questions: data.questions,
+      totalWeight: data.totalWeight,
+      currentQuestionId: data.currentQuestionId,
+    }
+  }
 }

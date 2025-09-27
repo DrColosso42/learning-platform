@@ -42,6 +42,9 @@ export function createStudySessionRoutes(): express.Router {
   // Select a specific question for study
   router.post('/:questionSetId/select-question', studySessionController.selectQuestion);
 
+  // Get hypothetical probabilities for live updates
+  router.post('/:questionSetId/hypothetical-probabilities', studySessionController.getQuestionsWithHypotheticalProbabilities);
+
   // === TIMER ROUTES ===
 
   // Start or resume timer for a session

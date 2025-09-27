@@ -614,6 +614,124 @@ export class StudySessionService {
   }
 
   /**
+   * Get probabilities with a hypothetical answer (for live updates)
+   */
+  async getQuestionsWithHypotheticalProbabilities(
+    userId: number,
+    questionSetId: number,
+    questionId: number,
+    hypotheticalRating: number
+  ): Promise<{
+    questions: Array<{
+      id: number;
+      questionText: string;
+      questionNumber: number;
+      lastAttempt: { userRating: number } | null;
+      selectionProbability: number;
+      weight: number;
+      isSelectable: boolean;
+    }>;
+    totalWeight: number;
+    currentQuestionId: number | null;
+  }> {
+    // Get current session
+    const session = await prisma.studySession.findFirst({
+      where: {
+        userId,
+        questionSetId,
+        completedAt: null,
+      },
+      include: {
+        sessionAnswers: {
+          orderBy: { answeredAt: 'asc' },
+        },
+      },
+    });
+
+    if (!session) {
+      throw new Error('No active session found');
+    }
+
+    // Get all questions for this question set
+    const allQuestions = await prisma.question.findMany({
+      where: { questionSetId },
+      orderBy: { id: 'asc' },
+    });
+
+    // Create a hypothetical answer for the current question
+    const hypotheticalAnswer = {
+      sessionId: session.id,
+      questionId,
+      userRating: hypotheticalRating,
+      answeredAt: new Date(), // Use current time for the hypothetical answer
+    };
+
+    // Add the hypothetical answer to the session answers (without saving to DB)
+    const sessionAnswersWithHypothetical = [...session.sessionAnswers, hypotheticalAnswer];
+
+    // Get questions with their last attempts (including hypothetical)
+    const questionsWithAttempts = this.attachLastAttempts(allQuestions, sessionAnswersWithHypothetical);
+
+    // Filter eligible questions (unseen or rating < 5)
+    const eligibleQuestions = questionsWithAttempts.filter(q =>
+      !q.lastAttempt || q.lastAttempt.userRating < 5
+    );
+
+    // Get answer sequence for recency calculation (including hypothetical)
+    const answerSequence = this.getAnswerSequence(questionsWithAttempts);
+
+    // Apply mode-specific filtering (same logic as getQuestionsWithProbabilities)
+    let finalCandidates: QuestionWithLastAttempt[];
+
+    if (session.mode === 'front-to-end') {
+      const firstUnseenByOrder = questionsWithAttempts.find(q => !q.lastAttempt && eligibleQuestions.includes(q));
+
+      if (firstUnseenByOrder) {
+        const seenEligible = eligibleQuestions.filter(q => q.lastAttempt);
+        finalCandidates = [firstUnseenByOrder, ...seenEligible];
+      } else {
+        finalCandidates = eligibleQuestions;
+      }
+    } else {
+      finalCandidates = eligibleQuestions;
+    }
+
+    // Calculate weights for ALL questions (including ineligible ones)
+    const questionsWithWeights = questionsWithAttempts.map((question, index) => {
+      const isCandidate = finalCandidates.some(fc => fc.id === question.id);
+      const weight = isCandidate ? this.calculateQuestionWeight(question, answerSequence) : 0;
+
+      // Allow selection of mastered questions (rating 5) even though they have 0% algorithm chance
+      const isMastered = question.lastAttempt?.userRating === 5;
+      const isSelectable = weight > 0 || isMastered;
+
+      return {
+        id: question.id,
+        questionText: question.questionText,
+        questionNumber: index + 1,
+        lastAttempt: question.lastAttempt ? { userRating: question.lastAttempt.userRating } : null,
+        weight,
+        isSelectable,
+      };
+    });
+
+    // Calculate total weight of eligible questions
+    const totalWeight = questionsWithWeights.reduce((sum, q) => sum + q.weight, 0);
+
+    // Calculate probabilities
+    const questionsWithProbabilities = questionsWithWeights.map(question => ({
+      ...question,
+      selectionProbability: totalWeight > 0 ? (question.weight / totalWeight) * 100 : 0,
+    }));
+
+    return {
+      questions: questionsWithProbabilities,
+      totalWeight,
+      currentQuestionId: questionId, // The question being rated
+    };
+  }
+
+  /**
    * Complete a study session manually
    */
   async completeSession(userId: number, questionSetId: number): Promise<void> {

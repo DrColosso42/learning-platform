@@ -8,6 +8,8 @@ interface QuestionSidebarProps {
   onQuestionSelect?: (questionId: number) => void
   currentQuestionId?: number | null
   refreshTrigger?: number // Used to trigger refresh when questions are answered
+  hypotheticalQuestionId?: number | null // Question ID for hypothetical rating
+  hypotheticalRating?: number | null // Hypothetical rating for live updates
 }
 
 /**
@@ -20,22 +22,49 @@ export function QuestionSidebar({
   onToggle,
   onQuestionSelect,
   currentQuestionId,
-  refreshTrigger = 0
+  refreshTrigger = 0,
+  hypotheticalQuestionId,
+  hypotheticalRating
 }: QuestionSidebarProps) {
   const [questionsData, setQuestionsData] = useState<QuestionsWithProbabilitiesResponse | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [showLegend, setShowLegend] = useState(false)
+  const [lastHypotheticalCall, setLastHypotheticalCall] = useState<{questionId: number | null, rating: number | null}>({questionId: null, rating: null})
 
   useEffect(() => {
     if (isOpen) {
       loadQuestionsWithProbabilities()
     }
-  }, [questionSetId, isOpen, refreshTrigger])
+  }, [questionSetId, isOpen, refreshTrigger, hypotheticalQuestionId, hypotheticalRating])
 
   const loadQuestionsWithProbabilities = async () => {
     try {
+      // Prevent duplicate API calls for the same hypothetical data
+      if (hypotheticalQuestionId && hypotheticalRating) {
+        if (lastHypotheticalCall.questionId === hypotheticalQuestionId &&
+            lastHypotheticalCall.rating === hypotheticalRating) {
+          return // Same hypothetical call, skip
+        }
+      }
+
       setIsLoading(true)
-      const data = await StudySessionService.getQuestionsWithProbabilities(questionSetId)
+
+      let data: QuestionsWithProbabilitiesResponse
+
+      // If we have hypothetical data, use the hypothetical API
+      if (hypotheticalQuestionId && hypotheticalRating) {
+        data = await StudySessionService.getQuestionsWithHypotheticalProbabilities(
+          questionSetId,
+          hypotheticalQuestionId,
+          hypotheticalRating
+        )
+        setLastHypotheticalCall({questionId: hypotheticalQuestionId, rating: hypotheticalRating})
+      } else {
+        // Otherwise use the normal API
+        data = await StudySessionService.getQuestionsWithProbabilities(questionSetId)
+        setLastHypotheticalCall({questionId: null, rating: null})
+      }
+
       setQuestionsData(data)
     } catch (error) {
       console.error('Failed to load questions with probabilities:', error)
@@ -347,8 +376,8 @@ export function QuestionSidebar({
         </div>
       </div>
 
-      {/* Overlay for mobile */}
-      {isOpen && (
+      {/* Overlay for mobile only */}
+      {isOpen && window.innerWidth < 768 && (
         <div
           onClick={onToggle}
           style={{

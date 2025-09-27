@@ -388,4 +388,54 @@ export class StudySessionController {
       res.status(500).json({ error: 'Failed to select question' });
     }
   };
+
+  /**
+   * Get questions with hypothetical probabilities for live updates
+   */
+  getQuestionsWithHypotheticalProbabilities = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const hypotheticalSchema = z.object({
+        questionId: z.number(),
+        hypotheticalRating: z.number().min(1).max(5),
+      });
+
+      const { questionSetId } = req.params;
+      const validatedData = hypotheticalSchema.parse(req.body);
+      const userId = req.user?.userId;
+
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      const questionSetIdNum = parseInt(questionSetId);
+      if (isNaN(questionSetIdNum)) {
+        res.status(400).json({ error: 'Invalid questionSetId' });
+        return;
+      }
+
+      const result = await this.studySessionService.getQuestionsWithHypotheticalProbabilities(
+        userId,
+        questionSetIdNum,
+        validatedData.questionId,
+        validatedData.hypotheticalRating
+      );
+
+      res.json({
+        success: true,
+        ...result,
+      });
+    } catch (error) {
+      console.error('Error getting hypothetical probabilities:', error);
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ error: 'Invalid request data', details: error.errors });
+        return;
+      }
+      if (error instanceof Error && error.message === 'No active session found') {
+        res.status(404).json({ error: 'No active session found' });
+        return;
+      }
+      res.status(500).json({ error: 'Failed to get hypothetical probabilities' });
+    }
+  };
 }
