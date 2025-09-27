@@ -36,6 +36,12 @@ export function createStudySessionRoutes(): express.Router {
   // Reset session - complete deletion and fresh start
   router.post('/:questionSetId/reset', studySessionController.resetSession);
 
+  // Get questions with selection probabilities for sidebar
+  router.get('/:questionSetId/questions-probabilities', studySessionController.getQuestionsWithProbabilities);
+
+  // Select a specific question for study
+  router.post('/:questionSetId/select-question', studySessionController.selectQuestion);
+
   // === TIMER ROUTES ===
 
   // Start or resume timer for a session

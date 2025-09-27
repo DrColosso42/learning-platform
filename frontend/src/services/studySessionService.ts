@@ -49,6 +49,22 @@ export interface SubmitAnswerRequest {
   confidenceRating: number
 }
 
+export interface QuestionWithProbability {
+  id: number
+  questionText: string
+  questionNumber: number
+  lastAttempt: { userRating: number } | null
+  selectionProbability: number
+  weight: number
+  isSelectable: boolean
+}
+
+export interface QuestionsWithProbabilitiesResponse {
+  questions: QuestionWithProbability[]
+  totalWeight: number
+  currentQuestionId: number | null
+}
+
 /**
  * Frontend service for managing study sessions
  * Handles session lifecycle, question flow, and progress tracking
@@ -205,5 +221,56 @@ export class StudySessionService {
     }
 
     return data.session
+  }
+
+  /**
+   * Get all questions with selection probabilities for sidebar visualization
+   */
+  static async getQuestionsWithProbabilities(questionSetId: number): Promise<QuestionsWithProbabilitiesResponse> {
+    const response = await fetch(`${API_BASE_URL}/api/study-sessions/${questionSetId}/questions-probabilities`, {
+      headers: {
+        ...AuthService.getAuthHeader(),
+      },
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to get questions with probabilities')
+    }
+
+    return {
+      questions: data.questions,
+      totalWeight: data.totalWeight,
+      currentQuestionId: data.currentQuestionId,
+    }
+  }
+
+  /**
+   * Select a specific question for study (if eligible)
+   */
+  static async selectQuestion(questionSetId: number, questionId: number): Promise<NextQuestionResponse> {
+    const response = await fetch(`${API_BASE_URL}/api/study-sessions/${questionSetId}/select-question`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...AuthService.getAuthHeader(),
+      },
+      body: JSON.stringify({ questionId }),
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to select question')
+    }
+
+    return {
+      question: data.question,
+      questionNumber: data.questionNumber,
+      previousScore: data.previousScore,
+      sessionComplete: data.sessionComplete,
+      progress: data.progress,
+    }
   }
 }

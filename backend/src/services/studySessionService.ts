@@ -324,7 +324,9 @@ export class StudySessionService {
         return timeA - timeB;
       });
 
-    return attemptedQuestions.map(q => q.id);
+    const sequence = attemptedQuestions.map(q => q.id);
+    console.log('🔍 Answer sequence (oldest to newest):', sequence);
+    return sequence;
   }
 
   /**
@@ -363,9 +365,11 @@ export class StudySessionService {
       if (stepsBack === 1) {
         // Just answered - cannot appear (0% chance)
         recencyMultiplier = 0;
+        console.log(`🚫 Question ${question.id} just answered (steps back: ${stepsBack}) - ZERO WEIGHT`);
       } else if (stepsBack === 2) {
         // 2nd most recent - heavy penalty (50% reduction)
         recencyMultiplier = 0.5;
+        console.log(`⚠️ Question ${question.id} answered 2 steps back - 50% penalty`);
       } else if (stepsBack === 3) {
         // 3rd most recent - medium penalty (70% of original weight)
         recencyMultiplier = 0.7;
@@ -380,10 +384,12 @@ export class StudySessionService {
         recencyMultiplier = 1.0;
       }
 
+      const originalWeight = baseWeight;
       baseWeight *= recencyMultiplier;
+      console.log(`🔢 Question ${question.id}: original weight ${originalWeight} × penalty ${recencyMultiplier} = ${baseWeight}`);
     }
 
-    return Math.max(1, baseWeight); // Ensure minimum weight of 1
+    return baseWeight; // Allow zero weight for just-answered questions
   }
 
   /**
@@ -407,6 +413,204 @@ export class StudySessionService {
 
     // Fallback to first question if something goes wrong
     return weightedQuestions[0].question;
+  }
+
+  /**
+   * Get all questions with their selection probabilities for sidebar visualization
+   */
+  async getQuestionsWithProbabilities(userId: number, questionSetId: number): Promise<{
+    questions: Array<{
+      id: number;
+      questionText: string;
+      questionNumber: number;
+      lastAttempt: { userRating: number } | null;
+      selectionProbability: number;
+      weight: number;
+      isSelectable: boolean;
+    }>;
+    totalWeight: number;
+    currentQuestionId: number | null;
+  }> {
+    // Get current session
+    const session = await prisma.studySession.findFirst({
+      where: {
+        userId,
+        questionSetId,
+        completedAt: null,
+      },
+      include: {
+        sessionAnswers: {
+          orderBy: { answeredAt: 'asc' },
+        },
+      },
+    });
+
+    if (!session) {
+      throw new Error('No active session found');
+    }
+
+    // Get all questions for this question set
+    const allQuestions = await prisma.question.findMany({
+      where: { questionSetId },
+      orderBy: { id: 'asc' },
+    });
+
+    // Get questions with their last attempts
+    const questionsWithAttempts = this.attachLastAttempts(allQuestions, session.sessionAnswers);
+
+    // Filter eligible questions (unseen or rating < 5)
+    const eligibleQuestions = questionsWithAttempts.filter(q =>
+      !q.lastAttempt || q.lastAttempt.userRating < 5
+    );
+
+    // Get answer sequence for recency calculation
+    const answerSequence = this.getAnswerSequence(questionsWithAttempts);
+
+    // Apply mode-specific filtering (same logic as selectNextQuestion)
+    let finalCandidates: QuestionWithLastAttempt[];
+
+    if (session.mode === 'front-to-end') {
+      // Find first unseen question by creation order
+      const firstUnseenByOrder = questionsWithAttempts.find(q => !q.lastAttempt && eligibleQuestions.includes(q));
+
+      if (firstUnseenByOrder) {
+        // Include first unseen (by creation order) + all seen questions with rating < 5
+        const seenEligible = eligibleQuestions.filter(q => q.lastAttempt);
+        finalCandidates = [firstUnseenByOrder, ...seenEligible];
+      } else {
+        // No unseen questions, use all eligible candidates
+        finalCandidates = eligibleQuestions;
+      }
+    } else {
+      // Shuffle mode: all eligible questions are candidates
+      finalCandidates = eligibleQuestions;
+    }
+
+    // Calculate weights for ALL questions (including ineligible ones)
+    const questionsWithWeights = questionsWithAttempts.map((question, index) => {
+      const isCandidate = finalCandidates.some(fc => fc.id === question.id);
+      const weight = isCandidate ? this.calculateQuestionWeight(question, answerSequence) : 0;
+
+      // Allow selection of mastered questions (rating 5) even though they have 0% algorithm chance
+      const isMastered = question.lastAttempt?.userRating === 5;
+      const isSelectable = weight > 0 || isMastered;
+
+      return {
+        id: question.id,
+        questionText: question.questionText,
+        questionNumber: index + 1,
+        lastAttempt: question.lastAttempt ? { userRating: question.lastAttempt.userRating } : null,
+        weight,
+        isSelectable,
+      };
+    });
+
+    // Calculate total weight of eligible questions
+    const totalWeight = questionsWithWeights.reduce((sum, q) => sum + q.weight, 0);
+
+    // Calculate probabilities
+    const questionsWithProbabilities = questionsWithWeights.map(question => ({
+      ...question,
+      selectionProbability: totalWeight > 0 ? (question.weight / totalWeight) * 100 : 0,
+    }));
+
+    // Get current question ID from last session answer or null if starting
+    const currentQuestionId = session.sessionAnswers.length > 0
+      ? session.sessionAnswers[session.sessionAnswers.length - 1].questionId
+      : null;
+
+    return {
+      questions: questionsWithProbabilities,
+      totalWeight,
+      currentQuestionId,
+    };
+  }
+
+  /**
+   * Select a specific question for study (if eligible)
+   */
+  async selectQuestion(userId: number, questionSetId: number, questionId: number): Promise<{
+    question: Question;
+    questionNumber: number;
+    previousScore: number | null;
+    sessionComplete: boolean;
+    progress: SessionProgress;
+  }> {
+    // Get current session
+    const session = await prisma.studySession.findFirst({
+      where: {
+        userId,
+        questionSetId,
+        completedAt: null,
+      },
+      include: {
+        sessionAnswers: {
+          orderBy: { answeredAt: 'asc' },
+        },
+      },
+    });
+
+    if (!session) {
+      throw new Error('No active session found');
+    }
+
+    // Get all questions for this question set
+    const allQuestions = await prisma.question.findMany({
+      where: { questionSetId },
+      orderBy: { id: 'asc' },
+    });
+
+    // Find the requested question
+    const requestedQuestion = allQuestions.find(q => q.id === questionId);
+    if (!requestedQuestion) {
+      throw new Error('Question not found');
+    }
+
+    // Get questions with their last attempts
+    const questionsWithAttempts = this.attachLastAttempts(allQuestions, session.sessionAnswers);
+
+    // Find the requested question with attempts
+    const questionWithAttempt = questionsWithAttempts.find(q => q.id === questionId);
+    if (!questionWithAttempt) {
+      throw new Error('Question not found in session');
+    }
+
+    // Check if question is selectable
+    const isEligible = !questionWithAttempt.lastAttempt || questionWithAttempt.lastAttempt.userRating < 5;
+    const isMastered = questionWithAttempt.lastAttempt?.userRating === 5;
+
+    // Get answer sequence for recency calculation
+    const answerSequence = this.getAnswerSequence(questionsWithAttempts);
+
+    // Calculate weight
+    const weight = isEligible ? this.calculateQuestionWeight(questionWithAttempt, answerSequence) : 0;
+
+    // Allow selection if either has weight > 0 OR is mastered (rating 5)
+    const isSelectable = weight > 0 || isMastered;
+
+    if (!isSelectable) {
+      throw new Error('Question is not currently selectable due to recency penalty');
+    }
+
+    // Calculate question number (1-based position in original question set)
+    const questionNumber = allQuestions.findIndex(q => q.id === questionId) + 1;
+
+    // Find previous score for this question
+    let previousScore: number | null = null;
+    if (questionWithAttempt.lastAttempt) {
+      previousScore = questionWithAttempt.lastAttempt.userRating;
+    }
+
+    // Calculate progress
+    const progress = this.calculateProgress(questionsWithAttempts, allQuestions.length);
+
+    return {
+      question: requestedQuestion,
+      questionNumber,
+      previousScore,
+      sessionComplete: false, // Never complete when manually selecting
+      progress,
+    };
   }
 
   /**

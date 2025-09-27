@@ -296,4 +296,96 @@ export class StudySessionController {
       res.status(500).json({ error: 'Failed to get session status' });
     }
   };
+
+  /**
+   * Get all questions with their selection probabilities for sidebar visualization
+   */
+  getQuestionsWithProbabilities = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { questionSetId } = req.params;
+      const userId = req.user?.userId;
+
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      const questionSetIdNum = parseInt(questionSetId);
+      if (isNaN(questionSetIdNum)) {
+        res.status(400).json({ error: 'Invalid questionSetId' });
+        return;
+      }
+
+      const result = await this.studySessionService.getQuestionsWithProbabilities(
+        userId,
+        questionSetIdNum
+      );
+
+      res.json({
+        success: true,
+        ...result,
+      });
+    } catch (error) {
+      console.error('Error getting questions with probabilities:', error);
+      if (error instanceof Error && error.message === 'No active session found') {
+        res.status(404).json({ error: 'No active session found' });
+        return;
+      }
+      res.status(500).json({ error: 'Failed to get questions with probabilities' });
+    }
+  };
+
+  /**
+   * Select a specific question for study (if eligible)
+   */
+  selectQuestion = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const selectQuestionSchema = z.object({
+        questionId: z.number(),
+      });
+
+      const { questionSetId } = req.params;
+      const validatedData = selectQuestionSchema.parse(req.body);
+      const userId = req.user?.userId;
+
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      const questionSetIdNum = parseInt(questionSetId);
+      if (isNaN(questionSetIdNum)) {
+        res.status(400).json({ error: 'Invalid questionSetId' });
+        return;
+      }
+
+      const result = await this.studySessionService.selectQuestion(
+        userId,
+        questionSetIdNum,
+        validatedData.questionId
+      );
+
+      res.json({
+        success: true,
+        ...result,
+      });
+    } catch (error) {
+      console.error('Error selecting question:', error);
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ error: 'Invalid request data', details: error.errors });
+        return;
+      }
+      if (error instanceof Error) {
+        if (error.message.includes('not selectable') || error.message.includes('not found')) {
+          res.status(400).json({ error: error.message });
+          return;
+        }
+        if (error.message === 'No active session found') {
+          res.status(404).json({ error: 'No active session found' });
+          return;
+        }
+      }
+      res.status(500).json({ error: 'Failed to select question' });
+    }
+  };
 }

@@ -7,6 +7,7 @@ import {
 } from '../services/studySessionService'
 import { AuthService } from '../services/authService'
 import { CompactTimer } from '../components/CompactTimer'
+import { QuestionSidebar } from '../components/QuestionSidebar'
 
 interface StudySessionPageProps {
   questionSetId: number
@@ -30,6 +31,8 @@ function StudySessionPage({ questionSetId, questionSetName, onBack }: StudySessi
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showAnswer, setShowAnswer] = useState(false)
   const [selectedMode, setSelectedMode] = useState<'front-to-end' | 'shuffle'>('front-to-end')
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true) // Default open on desktop
+  const [sidebarRefreshTrigger, setSidebarRefreshTrigger] = useState(0)
 
   useEffect(() => {
     checkSessionStatus()
@@ -132,6 +135,9 @@ function StudySessionPage({ questionSetId, questionSetName, onBack }: StudySessi
 
       // Load next question
       await loadNextQuestion()
+
+      // Refresh sidebar probabilities after submitting an answer
+      setSidebarRefreshTrigger(prev => prev + 1)
     } catch (error) {
       console.error('Failed to submit answer:', error)
       alert('Failed to submit answer. Please try again.')
@@ -147,6 +153,33 @@ function StudySessionPage({ questionSetId, questionSetName, onBack }: StudySessi
       setCurrentQuestion(null)
     } catch (error) {
       console.error('Failed to complete session:', error)
+    }
+  }
+
+  const handleQuestionSelect = async (questionId: number) => {
+    try {
+      setIsLoading(true)
+      const response = await StudySessionService.selectQuestion(questionSetId, questionId)
+
+      setCurrentQuestion(response.question)
+      setQuestionNumber(response.questionNumber)
+      setPreviousScore(response.previousScore)
+      setProgress(response.progress)
+      setSessionComplete(response.sessionComplete)
+      setSelectedRating(null)
+      setShowAnswer(false)
+
+      // Refresh sidebar to update current question highlighting
+      setSidebarRefreshTrigger(prev => prev + 1)
+    } catch (error) {
+      console.error('Failed to select question:', error)
+      if (error instanceof Error) {
+        alert(`Failed to select question: ${error.message}`)
+      } else {
+        alert('Failed to select question. Please try again.')
+      }
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -197,6 +230,16 @@ function StudySessionPage({ questionSetId, questionSetName, onBack }: StudySessi
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', padding: '2rem 0' }}>
+      {/* Question Sidebar */}
+      <QuestionSidebar
+        questionSetId={questionSetId}
+        isOpen={isSidebarOpen}
+        onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+        onQuestionSelect={handleQuestionSelect}
+        currentQuestionId={currentQuestion?.id || null}
+        refreshTrigger={sidebarRefreshTrigger}
+      />
+
       <div className="container">
         {/* Header */}
         <div style={{
