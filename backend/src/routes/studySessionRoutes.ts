@@ -33,6 +33,9 @@ export function createStudySessionRoutes(): express.Router {
   // Restart session with new mode
   router.post('/:questionSetId/restart', studySessionController.restartSession);
 
+  // Reset session - complete deletion and fresh start
+  router.post('/:questionSetId/reset', studySessionController.resetSession);
+
   // === TIMER ROUTES ===
 
   // Start or resume timer for a session

@@ -1,21 +1,30 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useImperativeHandle, forwardRef } from 'react'
 import { StatisticsService, RecentStudySession } from '../services/statisticsService'
 
 interface RecentStudiesProps {
   onResumeStudy?: (questionSetId: number, questionSetName: string) => void
 }
 
+export interface RecentStudiesRef {
+  refresh: () => Promise<void>
+}
+
 /**
  * Recent Studies component shows user's latest study sessions
  * Helps users quickly resume their learning activities
  */
-function RecentStudies({ onResumeStudy }: RecentStudiesProps) {
+const RecentStudies = forwardRef<RecentStudiesRef, RecentStudiesProps>(({ onResumeStudy }, ref) => {
   const [sessions, setSessions] = useState<RecentStudySession[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     loadRecentSessions()
   }, [])
+
+  // Expose refresh function to parent components
+  useImperativeHandle(ref, () => ({
+    refresh: loadRecentSessions
+  }))
 
   const loadRecentSessions = async () => {
     try {
@@ -219,6 +228,6 @@ function RecentStudies({ onResumeStudy }: RecentStudiesProps) {
       )}
     </div>
   )
-}
+})
 
 export default RecentStudies

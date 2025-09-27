@@ -241,6 +241,13 @@ function StudySessionPage({ questionSetId, questionSetName, onBack }: StudySessi
           onCycleComplete={(cycles) => {
             console.log('Completed cycles:', cycles);
           }}
+          onSessionReset={() => {
+            // Refresh the session data after reset
+            checkSessionStatus();
+            setCurrentQuestion(null);
+            setSessionComplete(false);
+            console.log('Session reset - refreshing data');
+          }}
         />
 
         {/* Progress Bar */}

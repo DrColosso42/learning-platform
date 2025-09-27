@@ -183,4 +183,27 @@ export class StudySessionService {
 
     return data.session
   }
+
+  /**
+   * Reset study session - complete deletion and fresh start
+   * This removes all progress and timer data permanently
+   */
+  static async resetSession(questionSetId: number, mode: 'front-to-end' | 'shuffle' = 'front-to-end'): Promise<StudySession> {
+    const response = await fetch(`${API_BASE_URL}/api/study-sessions/${questionSetId}/reset`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...AuthService.getAuthHeader(),
+      },
+      body: JSON.stringify({ mode }),
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to reset session')
+    }
+
+    return data.session
+  }
 }

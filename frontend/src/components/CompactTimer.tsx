@@ -1,22 +1,25 @@
 import { useState, useEffect, useCallback } from 'react';
 import { TimerService, TimerState, TimerConfig } from '../services/timerService';
+import { StudySessionService } from '../services/studySessionService';
 
 interface CompactTimerProps {
   questionSetId: number;
   isVisible: boolean;
   onPhaseChange?: (phase: string) => void;
   onCycleComplete?: (cycles: number) => void;
+  onSessionReset?: () => void;
 }
 
 /**
  * Compact timer component that doesn't distract from study content
  * Features minimal design with essential controls only
  */
-export function CompactTimer({ questionSetId, isVisible, onPhaseChange, onCycleComplete }: CompactTimerProps) {
+export function CompactTimer({ questionSetId, isVisible, onPhaseChange, onCycleComplete, onSessionReset }: CompactTimerProps) {
   const [timerState, setTimerState] = useState<TimerState | null>(null);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // Configuration state
   const [workDuration, setWorkDuration] = useState(25 * 60); // 25 minutes
@@ -156,6 +159,33 @@ export function CompactTimer({ questionSetId, isVisible, onPhaseChange, onCycleC
       }
     } catch (error) {
       console.error('Failed to update config:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResetSession = async () => {
+    if (isLoading) return;
+
+    try {
+      setIsLoading(true);
+      await StudySessionService.resetSession(questionSetId, 'front-to-end');
+
+      // Clear timer state
+      setTimerState(null);
+      setCurrentTime(0);
+
+      // Close modals
+      setShowResetConfirm(false);
+      setIsExpanded(false);
+
+      // Notify parent component
+      onSessionReset?.();
+
+      console.log('Session reset successfully');
+    } catch (error) {
+      console.error('Failed to reset session:', error);
+      alert('Failed to reset session. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -474,6 +504,99 @@ export function CompactTimer({ questionSetId, isVisible, onPhaseChange, onCycleC
         >
           Update
         </button>
+      </div>
+
+      {/* Reset Session Section */}
+      <div style={{
+        marginTop: '12px',
+        padding: '8px',
+        backgroundColor: '#fef2f2',
+        borderRadius: '6px',
+        border: '1px solid #fecaca',
+      }}>
+        {!showResetConfirm ? (
+          <>
+            <div style={{
+              fontSize: '11px',
+              color: '#991b1b',
+              marginBottom: '6px',
+              fontWeight: '500',
+            }}>
+              Reset Session
+            </div>
+            <div style={{
+              fontSize: '10px',
+              color: '#7f1d1d',
+              marginBottom: '8px',
+            }}>
+              This will delete all progress and timer data permanently.
+            </div>
+            <button
+              onClick={() => setShowResetConfirm(true)}
+              style={{
+                backgroundColor: '#ef4444',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                padding: '4px 8px',
+                fontSize: '11px',
+                cursor: 'pointer',
+                width: '100%',
+              }}
+            >
+              Reset Session
+            </button>
+          </>
+        ) : (
+          <>
+            <div style={{
+              fontSize: '11px',
+              color: '#991b1b',
+              marginBottom: '8px',
+              fontWeight: '600',
+            }}>
+              Are you sure?
+            </div>
+            <div style={{
+              display: 'flex',
+              gap: '4px',
+            }}>
+              <button
+                onClick={handleResetSession}
+                disabled={isLoading}
+                style={{
+                  backgroundColor: '#ef4444',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '4px 8px',
+                  fontSize: '10px',
+                  cursor: isLoading ? 'not-allowed' : 'pointer',
+                  opacity: isLoading ? 0.6 : 1,
+                  flex: 1,
+                }}
+              >
+                {isLoading ? 'Resetting...' : 'Yes, Reset'}
+              </button>
+              <button
+                onClick={() => setShowResetConfirm(false)}
+                disabled={isLoading}
+                style={{
+                  backgroundColor: '#6b7280',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '4px 8px',
+                  fontSize: '10px',
+                  cursor: 'pointer',
+                  flex: 1,
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

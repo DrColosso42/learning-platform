@@ -201,6 +201,58 @@ export class StudySessionController {
   };
 
   /**
+   * Reset study session - complete deletion and fresh start
+   */
+  resetSession = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const resetSessionSchema = z.object({
+        mode: z.enum(['front-to-end', 'shuffle']).optional().default('front-to-end'),
+      });
+
+      const { questionSetId } = req.params;
+      const validatedData = resetSessionSchema.parse(req.body);
+      const userId = req.user?.userId;
+
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      const questionSetIdNum = parseInt(questionSetId);
+      if (isNaN(questionSetIdNum)) {
+        res.status(400).json({ error: 'Invalid questionSetId' });
+        return;
+      }
+
+      console.log('🔄 StudySessionController: Resetting session for questionSet', questionSetIdNum, 'user', userId);
+
+      const session = await this.studySessionService.resetSession(
+        userId,
+        questionSetIdNum,
+        validatedData.mode
+      );
+
+      res.json({
+        success: true,
+        message: 'Session reset successfully',
+        session: {
+          id: session.id,
+          questionSetId: session.questionSetId,
+          mode: session.mode,
+          startedAt: session.startedAt,
+        },
+      });
+    } catch (error) {
+      console.error('Error resetting study session:', error);
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ error: 'Invalid request data', details: error.errors });
+        return;
+      }
+      res.status(500).json({ error: 'Failed to reset study session' });
+    }
+  };
+
+  /**
    * Get current study session status
    */
   getSessionStatus = async (req: Request, res: Response): Promise<void> => {

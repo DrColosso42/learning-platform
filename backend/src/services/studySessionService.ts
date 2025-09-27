@@ -438,4 +438,64 @@ export class StudySessionService {
     // Create new session
     return this.startOrResumeSession(userId, sessionData);
   }
+
+  /**
+   * Reset session - delete all progress and timer data, start fresh
+   * This provides a complete reset unlike restart which preserves completed sessions
+   */
+  async resetSession(
+    userId: number,
+    questionSetId: number,
+    mode: 'front-to-end' | 'shuffle' = 'front-to-end'
+  ): Promise<StudySessionWithAnswers> {
+    console.log('🔄 StudySessionService: Resetting ALL sessions for user', userId, 'questionSet', questionSetId);
+
+    // Find ALL sessions for this user and questionSet (both active and completed)
+    const allSessions = await prisma.studySession.findMany({
+      where: {
+        userId,
+        questionSetId,
+      },
+      select: { id: true }
+    });
+
+    if (allSessions.length > 0) {
+      console.log('🗑️ StudySessionService: Deleting', allSessions.length, 'sessions and all associated data');
+
+      const sessionIds = allSessions.map(s => s.id);
+
+      // Delete all timer sessions for these deck sessions
+      await prisma.timerSession.deleteMany({
+        where: {
+          deckSessionId: { in: sessionIds }
+        }
+      });
+
+      // Delete all session answers for these sessions
+      await prisma.sessionAnswer.deleteMany({
+        where: {
+          sessionId: { in: sessionIds }
+        }
+      });
+
+      // Delete all study sessions
+      await prisma.studySession.deleteMany({
+        where: {
+          userId,
+          questionSetId,
+        }
+      });
+
+      console.log('✅ StudySessionService: All sessions and data deleted successfully');
+    } else {
+      console.log('ℹ️ StudySessionService: No sessions found to reset');
+    }
+
+    // Create a fresh new session
+    console.log('🆕 StudySessionService: Creating fresh session');
+    return this.startOrResumeSession(userId, {
+      questionSetId,
+      mode,
+    });
+  }
 }

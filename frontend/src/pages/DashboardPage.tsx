@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { AuthService } from '../services/authService'
-import RecentStudies from '../components/RecentStudies'
+import RecentStudies, { RecentStudiesRef } from '../components/RecentStudies'
 import ProjectManagement from '../components/ProjectManagement'
 import ActivityCalendar from '../components/ActivityCalendar'
 import UserStats from '../components/UserStats'
@@ -15,6 +15,7 @@ import QuestionSetSelectionPage from './QuestionSetSelectionPage'
  */
 function DashboardPage() {
   const user = AuthService.getUser()
+  const recentStudiesRef = useRef<RecentStudiesRef>(null)
   const [activeTab, setActiveTab] = useState<'overview' | 'projects' | 'stats'>('overview')
   const [questionManagement, setQuestionManagement] = useState<{
     projectId: number
@@ -61,9 +62,13 @@ function DashboardPage() {
     setStudySession({ questionSetId, questionSetName })
   }
 
-  const handleBackFromStudy = () => {
+  const handleBackFromStudy = async () => {
     setStudySession(null)
-    setActiveTab('projects') // Go back to projects tab
+    setActiveTab('overview') // Go back to overview tab to show refreshed recent studies
+    // Refresh recent studies to reflect any session changes (like resets)
+    if (recentStudiesRef.current) {
+      await recentStudiesRef.current.refresh()
+    }
   }
 
   if (!user) {
@@ -189,7 +194,7 @@ function DashboardPage() {
               gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
               gap: '2rem'
             }}>
-              <RecentStudies onResumeStudy={handleResumeStudy} />
+              <RecentStudies ref={recentStudiesRef} onResumeStudy={handleResumeStudy} />
               <ActivityCalendar />
               <UserStats />
             </div>
