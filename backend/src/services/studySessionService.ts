@@ -337,16 +337,16 @@ export class StudySessionService {
     let baseWeight: number;
 
     if (!question.lastAttempt) {
-      // New question gets medium-high priority
-      baseWeight = 100;
+      // New question gets priority between shaky (rating 2) and okay (rating 3)
+      baseWeight = 80;
     } else {
       // Weight based on confidence rating (lower rating = higher weight)
       const rating = question.lastAttempt.userRating;
       const ratingWeights = {
-        1: 200, // Highest priority
-        2: 80,
-        3: 60,
-        4: 40,  // Lowest priority (rating 5 is filtered out)
+        1: 200, // Highest priority - Don't know at all
+        2: 120, // High priority - Shaky, needs review
+        3: 60,  // Medium priority - Okay
+        4: 30,  // Low priority - Confident (rating 5 is filtered out)
       };
       baseWeight = ratingWeights[rating as keyof typeof ratingWeights] || 50;
     }
