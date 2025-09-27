@@ -24,17 +24,20 @@ export function CompactTimer({ questionSetId, isVisible, onPhaseChange, onCycleC
   // Configuration state
   const [workDuration, setWorkDuration] = useState(25 * 60); // 25 minutes
   const [restDuration, setRestDuration] = useState(5 * 60);  // 5 minutes
-  const [isInfinite, setIsInfinite] = useState(false);
+  const [isInfinite, setIsInfinite] = useState(true); // Default to infinite/continuous mode
 
   // Update current time every second
   useEffect(() => {
     const interval = setInterval(() => {
       if (timerState && timerState.currentPhase !== 'paused' && timerState.currentPhase !== 'completed') {
-        const remaining = TimerService.getRemainingTime(timerState);
-        setCurrentTime(remaining);
+        // For infinite mode, show elapsed time instead of remaining time
+        const time = isInfinite
+          ? TimerService.getElapsedTime(timerState)
+          : TimerService.getRemainingTime(timerState);
+        setCurrentTime(time);
 
-        // Auto advance when time runs out
-        if (TimerService.shouldAdvancePhase(timerState) && !isInfinite) {
+        // Auto advance when time runs out in Pomodoro mode
+        if (!isInfinite && TimerService.shouldAdvancePhase(timerState)) {
           handleAdvancePhase();
         }
       }
@@ -58,8 +61,11 @@ export function CompactTimer({ questionSetId, isVisible, onPhaseChange, onCycleC
       setRestDuration(state.restDuration);
       setIsInfinite(state.isInfinite);
 
-      const remaining = TimerService.getRemainingTime(state);
-      setCurrentTime(remaining);
+      // For infinite mode, show elapsed time instead of remaining time
+      const time = state.isInfinite
+        ? TimerService.getElapsedTime(state)
+        : TimerService.getRemainingTime(state);
+      setCurrentTime(time);
     } catch (error) {
       console.log('Timer not started yet for questionSet', questionSetId);
     }
@@ -79,8 +85,11 @@ export function CompactTimer({ questionSetId, isVisible, onPhaseChange, onCycleC
       const state = await TimerService.startTimer(questionSetId, config);
       setTimerState(state);
 
-      const remaining = TimerService.getRemainingTime(state);
-      setCurrentTime(remaining);
+      // For infinite mode, show elapsed time instead of remaining time
+      const time = isInfinite
+        ? TimerService.getElapsedTime(state)
+        : TimerService.getRemainingTime(state);
+      setCurrentTime(time);
 
       onPhaseChange?.(state.currentPhase);
     } catch (error) {
@@ -112,8 +121,11 @@ export function CompactTimer({ questionSetId, isVisible, onPhaseChange, onCycleC
       const state = await TimerService.advancePhase(questionSetId);
       setTimerState(state);
 
-      const remaining = TimerService.getRemainingTime(state);
-      setCurrentTime(remaining);
+      // For infinite mode, show elapsed time instead of remaining time
+      const time = isInfinite
+        ? TimerService.getElapsedTime(state)
+        : TimerService.getRemainingTime(state);
+      setCurrentTime(time);
 
       onPhaseChange?.(state.currentPhase);
 
@@ -250,7 +262,7 @@ export function CompactTimer({ questionSetId, isVisible, onPhaseChange, onCycleC
           color: getPhaseColor(),
           minWidth: '45px',
         }}>
-          {isInfinite || !timerState ? '∞' : TimerService.formatTimerDisplay(currentTime)}
+          {!timerState ? '∞' : TimerService.formatTimerDisplay(currentTime)}
         </span>
         {timerState && (
           <span style={{
@@ -327,7 +339,7 @@ export function CompactTimer({ questionSetId, isVisible, onPhaseChange, onCycleC
           color: getPhaseColor(),
           fontFamily: 'monospace',
         }}>
-          {isInfinite || !timerState ? '∞' : TimerService.formatTimerDisplay(currentTime)}
+          {!timerState ? '∞' : TimerService.formatTimerDisplay(currentTime)}
         </div>
         {timerState && (
           <div style={{
@@ -382,24 +394,22 @@ export function CompactTimer({ questionSetId, isVisible, onPhaseChange, onCycleC
               {timerState.currentPhase === 'paused' ? 'Resume' : 'Pause'}
             </button>
 
-            {!isInfinite && (
-              <button
-                onClick={handleAdvancePhase}
-                disabled={isLoading}
-                style={{
-                  backgroundColor: '#3b82f6',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '6px',
-                  padding: '6px 12px',
-                  fontSize: '12px',
-                  cursor: isLoading ? 'not-allowed' : 'pointer',
-                  opacity: isLoading ? 0.6 : 1,
-                }}
-              >
-                Next
-              </button>
-            )}
+            <button
+              onClick={handleAdvancePhase}
+              disabled={isLoading}
+              style={{
+                backgroundColor: '#3b82f6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '6px 12px',
+                fontSize: '12px',
+                cursor: isLoading ? 'not-allowed' : 'pointer',
+                opacity: isLoading ? 0.6 : 1,
+              }}
+            >
+              {timerState?.currentPhase === 'work' ? '→ Rest' : '→ Work'}
+            </button>
 
             <button
               onClick={handleStopTimer}
@@ -421,7 +431,7 @@ export function CompactTimer({ questionSetId, isVisible, onPhaseChange, onCycleC
         )}
       </div>
 
-      {/* Quick Settings */}
+      {/* Timer Settings */}
       <div style={{
         marginTop: '12px',
         padding: '8px',
@@ -429,81 +439,149 @@ export function CompactTimer({ questionSetId, isVisible, onPhaseChange, onCycleC
         borderRadius: '6px',
         fontSize: '12px',
       }}>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginBottom: '6px'
-        }}>
-          <span>Work:</span>
-          <input
-            type="number"
-            min="1"
-            max="120"
-            value={Math.floor(workDuration / 60)}
-            onChange={(e) => setWorkDuration(parseInt(e.target.value) * 60)}
-            style={{
-              width: '50px',
-              padding: '2px 4px',
-              border: '1px solid #d1d5db',
-              borderRadius: '3px',
-              fontSize: '11px',
-            }}
-          />
-          <span>min</span>
-        </div>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginBottom: '6px'
-        }}>
-          <span>Rest:</span>
-          <input
-            type="number"
-            min="1"
-            max="60"
-            value={Math.floor(restDuration / 60)}
-            onChange={(e) => setRestDuration(parseInt(e.target.value) * 60)}
-            style={{
-              width: '50px',
-              padding: '2px 4px',
-              border: '1px solid #d1d5db',
-              borderRadius: '3px',
-              fontSize: '11px',
-            }}
-          />
-          <span>min</span>
-        </div>
+        {/* Timer Mode Toggle */}
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: '8px'
+          marginBottom: '8px',
+          padding: '6px',
+          backgroundColor: isInfinite ? '#f0f9ff' : '#fef7ed',
+          borderRadius: '4px',
+          border: `1px solid ${isInfinite ? '#e0f2fe' : '#fed7aa'}`,
         }}>
-          <span>Infinite:</span>
+          <span style={{ fontWeight: '600', color: isInfinite ? '#0c4a6e' : '#9a3412' }}>
+            {isInfinite ? '🕐 Continuous Mode' : '⏰ Pomodoro Mode'}
+          </span>
           <input
             type="checkbox"
             checked={isInfinite}
-            onChange={(e) => setIsInfinite(e.target.checked)}
-            style={{ transform: 'scale(0.8)' }}
+            onChange={async (e) => {
+              const newInfiniteMode = e.target.checked;
+              setIsInfinite(newInfiniteMode);
+
+              // If timer is running, update the configuration immediately
+              if (timerState) {
+                try {
+                  const config = {
+                    workDuration,
+                    restDuration,
+                    isInfinite: newInfiniteMode,
+                  };
+                  const updatedState = await TimerService.updateConfig(questionSetId, config);
+                  setTimerState(updatedState);
+                } catch (error) {
+                  console.error('Failed to update timer mode:', error);
+                }
+              }
+            }}
+            style={{ transform: 'scale(0.9)' }}
           />
         </div>
-        <button
-          onClick={handleUpdateConfig}
-          disabled={isLoading}
-          style={{
-            backgroundColor: '#3b82f6',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            padding: '4px 8px',
-            fontSize: '11px',
-            cursor: isLoading ? 'not-allowed' : 'pointer',
-            opacity: isLoading ? 0.6 : 1,
-            width: '100%',
-          }}
-        >
-          Update
-        </button>
+
+        {/* Mode Description */}
+        <div style={{
+          fontSize: '10px',
+          color: isInfinite ? '#0369a1' : '#9a3412',
+          textAlign: 'center',
+          marginBottom: '8px',
+          lineHeight: '1.3',
+        }}>
+          {isInfinite
+            ? 'Timer runs continuously. Switch phases manually when ready.'
+            : 'Traditional intervals with automatic phase switching.'
+          }
+        </div>
+
+        {/* Interval Settings (only show in Pomodoro mode) */}
+        {!isInfinite && (
+          <>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginBottom: '6px'
+            }}>
+              <span>Work:</span>
+              <input
+                type="number"
+                min="1"
+                max="120"
+                value={Math.floor(workDuration / 60)}
+                onChange={(e) => setWorkDuration(parseInt(e.target.value) * 60)}
+                style={{
+                  width: '50px',
+                  padding: '2px 4px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '3px',
+                  fontSize: '11px',
+                }}
+              />
+              <span>min</span>
+            </div>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginBottom: '8px'
+            }}>
+              <span>Rest:</span>
+              <input
+                type="number"
+                min="1"
+                max="60"
+                value={Math.floor(restDuration / 60)}
+                onChange={(e) => setRestDuration(parseInt(e.target.value) * 60)}
+                style={{
+                  width: '50px',
+                  padding: '2px 4px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '3px',
+                  fontSize: '11px',
+                }}
+              />
+              <span>min</span>
+            </div>
+          </>
+        )}
+
+        {/* Current Phase Display */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          fontSize: '11px',
+          color: '#1e40af',
+          marginBottom: isInfinite ? '0' : '8px',
+        }}>
+          <span>Current Phase:</span>
+          <span style={{
+            fontWeight: '600',
+            textTransform: 'capitalize',
+            color: getPhaseColor(),
+          }}>
+            {timerState?.currentPhase || 'Ready'}
+          </span>
+        </div>
+
+        {/* Update Button (only show in Pomodoro mode or when changes need to be applied) */}
+        {!isInfinite && (
+          <button
+            onClick={handleUpdateConfig}
+            disabled={isLoading}
+            style={{
+              backgroundColor: '#3b82f6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              padding: '4px 8px',
+              fontSize: '11px',
+              cursor: isLoading ? 'not-allowed' : 'pointer',
+              opacity: isLoading ? 0.6 : 1,
+              width: '100%',
+            }}
+          >
+            Update Settings
+          </button>
+        )}
       </div>
 
       {/* Reset Session Section */}

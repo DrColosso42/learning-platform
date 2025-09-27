@@ -2,7 +2,7 @@ import { prisma } from '../config/database.js';
 
 export interface UserStatistics {
   totalSessions: number;
-  totalQuestions: number;
+  totalQuestions: number; // Actually represents total points earned (sum of confidence ratings)
   averageRating: number;
   currentStreak: number;
   longestStreak: number;
@@ -86,10 +86,17 @@ export class StatisticsService {
 
     // Calculate basic stats from sessions with answers (both completed and ongoing)
     const totalSessions = sessionsWithAnswers.length;
-    const totalQuestions = sessionsWithAnswers.reduce(
-      (sum, session) => sum + session.sessionAnswers.length,
-      0
-    );
+
+    // Calculate total points earned (sum of confidence ratings) instead of answer count
+    const totalPoints = sessionsWithAnswers.reduce((sum, session) => {
+      // Get latest rating for each question in this session (avoid counting duplicates)
+      const latestRatings = new Map<number, number>();
+      session.sessionAnswers.forEach(answer => {
+        latestRatings.set(answer.questionId, answer.userRating);
+      });
+      // Sum the latest ratings for unique questions
+      return sum + Array.from(latestRatings.values()).reduce((ratingSum, rating) => ratingSum + rating, 0);
+    }, 0);
 
     // Calculate average rating from all answered questions
     const allRatings = sessionsWithAnswers.flatMap(session =>
@@ -118,7 +125,7 @@ export class StatisticsService {
 
     return {
       totalSessions,
-      totalQuestions,
+      totalQuestions: totalPoints, // Now represents total points earned
       averageRating,
       currentStreak,
       longestStreak,
@@ -155,8 +162,15 @@ export class StatisticsService {
       .slice(0, limit);
 
     return sessionsWithAnswers.map(session => {
-      const averageRating = session.sessionAnswers.length > 0
-        ? session.sessionAnswers.reduce((sum, answer) => sum + answer.userRating, 0) / session.sessionAnswers.length
+      // Get latest rating for each question (avoid counting duplicates)
+      const latestRatings = new Map<number, number>();
+      session.sessionAnswers.forEach(answer => {
+        latestRatings.set(answer.questionId, answer.userRating);
+      });
+
+      const uniqueQuestionsAnswered = latestRatings.size;
+      const averageRating = uniqueQuestionsAnswered > 0
+        ? Array.from(latestRatings.values()).reduce((sum, rating) => sum + rating, 0) / uniqueQuestionsAnswered
         : 0;
 
       return {
@@ -164,7 +178,7 @@ export class StatisticsService {
         questionSetId: session.questionSetId,
         projectName: session.questionSet.project.name,
         questionSetName: session.questionSet.name,
-        questionsAnswered: session.sessionAnswers.length,
+        questionsAnswered: uniqueQuestionsAnswered,
         totalQuestions: session.questionSet.questions.length,
         averageRating,
         completedAt: (session.completedAt || session.startedAt).toISOString(),

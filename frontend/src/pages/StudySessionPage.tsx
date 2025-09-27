@@ -6,6 +6,7 @@ import {
   NextQuestionResponse
 } from '../services/studySessionService'
 import { AuthService } from '../services/authService'
+import { TimerService } from '../services/timerService'
 import { CompactTimer } from '../components/CompactTimer'
 import { QuestionSidebar } from '../components/QuestionSidebar'
 
@@ -59,6 +60,25 @@ function StudySessionPage({ questionSetId, questionSetName, onBack }: StudySessi
 
       if (status.hasActiveSession && !status.sessionComplete) {
         await loadNextQuestion()
+
+        // Auto-start timer with infinite mode if not already running
+        try {
+          const currentTimer = await TimerService.getTimerState(questionSetId)
+          // Timer exists, don't start a new one
+          console.log('Timer already exists for resumed session')
+        } catch (error) {
+          // No timer exists, start one
+          try {
+            await TimerService.startTimer(questionSetId, {
+              workDuration: 25 * 60, // 25 minutes default
+              restDuration: 5 * 60,  // 5 minutes default
+              isInfinite: true       // Start in infinite mode
+            })
+            console.log('Timer auto-started for resumed session')
+          } catch (startError) {
+            console.log('Timer auto-start failed:', startError)
+          }
+        }
       }
     } catch (error) {
       console.error('Failed to check session status:', error)
@@ -91,6 +111,18 @@ function StudySessionPage({ questionSetId, questionSetName, onBack }: StudySessi
       setHasActiveSession(true)
       setSessionComplete(false)
       await loadNextQuestion()
+
+      // Auto-start timer with infinite mode when session starts
+      try {
+        await TimerService.startTimer(questionSetId, {
+          workDuration: 25 * 60, // 25 minutes default
+          restDuration: 5 * 60,  // 5 minutes default
+          isInfinite: true       // Start in infinite mode
+        })
+        console.log('Timer auto-started for new session')
+      } catch (error) {
+        console.log('Timer auto-start failed (timer may already be running):', error)
+      }
     } catch (error) {
       console.error('Failed to start session:', error)
       if (error instanceof Error && error.message.includes('Unauthorized')) {

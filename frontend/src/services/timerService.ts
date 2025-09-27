@@ -295,6 +295,17 @@ export class TimerService {
   }
 
   /**
+   * Get the elapsed time in current phase
+   */
+  static getElapsedTime(timerState: TimerState): number {
+    if (!timerState.phaseStartedAt || timerState.currentPhase === 'paused' || timerState.currentPhase === 'completed') {
+      return 0;
+    }
+
+    return Math.floor((Date.now() - timerState.phaseStartedAt.getTime()) / 1000);
+  }
+
+  /**
    * Check if current phase should advance automatically
    */
   static shouldAdvancePhase(timerState: TimerState): boolean {

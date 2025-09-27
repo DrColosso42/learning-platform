@@ -95,14 +95,14 @@ function UserStats({ detailed = false }: UserStatsProps) {
 
   const basicStats = [
     {
-      icon: '🎯',
+      icon: '📚',
       label: 'Sessions',
       value: stats.totalSessions.toString(),
       color: '#2563eb'
     },
     {
-      icon: '❓',
-      label: 'Questions',
+      icon: '🎯',
+      label: 'Points',
       value: stats.totalQuestions.toString(),
       color: '#7c3aed'
     },
