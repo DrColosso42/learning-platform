@@ -35,6 +35,7 @@ function StudySessionPage({ questionSetId, questionSetName, onBack }: StudySessi
   const [isSidebarOpen, setIsSidebarOpen] = useState(true) // Default open on desktop
   const [sidebarRefreshTrigger, setSidebarRefreshTrigger] = useState(0)
   const [hypotheticalRating, setHypotheticalRating] = useState<number | null>(null)
+  const [hasTimerStarted, setHasTimerStarted] = useState(false)
 
   useEffect(() => {
     checkSessionStatus()
@@ -61,23 +62,14 @@ function StudySessionPage({ questionSetId, questionSetName, onBack }: StudySessi
       if (status.hasActiveSession && !status.sessionComplete) {
         await loadNextQuestion()
 
-        // Auto-start timer with infinite mode if not already running
+        // Check if timer is already running from previous session
         try {
-          const currentTimer = await TimerService.getTimerState(questionSetId)
-          // Timer exists, don't start a new one
-          console.log('Timer already exists for resumed session')
+          await TimerService.getTimerState(questionSetId)
+          setHasTimerStarted(true)
+          console.log('Existing timer found on session resume')
         } catch (error) {
-          // No timer exists, start one
-          try {
-            await TimerService.startTimer(questionSetId, {
-              workDuration: 25 * 60, // 25 minutes default
-              restDuration: 5 * 60,  // 5 minutes default
-              isInfinite: true       // Start in infinite mode
-            })
-            console.log('Timer auto-started for resumed session')
-          } catch (startError) {
-            console.log('Timer auto-start failed:', startError)
-          }
+          setHasTimerStarted(false)
+          console.log('No timer found - will start on first answer submission')
         }
       }
     } catch (error) {
@@ -112,17 +104,7 @@ function StudySessionPage({ questionSetId, questionSetName, onBack }: StudySessi
       setSessionComplete(false)
       await loadNextQuestion()
 
-      // Auto-start timer with infinite mode when session starts
-      try {
-        await TimerService.startTimer(questionSetId, {
-          workDuration: 25 * 60, // 25 minutes default
-          restDuration: 5 * 60,  // 5 minutes default
-          isInfinite: true       // Start in infinite mode
-        })
-        console.log('Timer auto-started for new session')
-      } catch (error) {
-        console.log('Timer auto-start failed (timer may already be running):', error)
-      }
+      // Timer will start automatically when user submits first answer
     } catch (error) {
       console.error('Failed to start session:', error)
       if (error instanceof Error && error.message.includes('Unauthorized')) {
@@ -162,6 +144,27 @@ function StudySessionPage({ questionSetId, questionSetName, onBack }: StudySessi
 
     try {
       setIsSubmitting(true)
+
+      // Start timer on first answer submission if not already running
+      try {
+        await TimerService.getTimerState(questionSetId)
+        // Timer already exists, don't start a new one
+        console.log('Timer already running, continuing...')
+      } catch (error) {
+        // No timer exists, start one
+        try {
+          await TimerService.startTimer(questionSetId, {
+            workDuration: 25 * 60, // 25 minutes default
+            restDuration: 5 * 60,  // 5 minutes default
+            isInfinite: true       // Start in infinite mode
+          })
+          setHasTimerStarted(true)
+          console.log('Timer started on first answer submission')
+        } catch (startError) {
+          console.log('Timer start failed:', startError)
+        }
+      }
+
       await StudySessionService.submitAnswer(questionSetId, {
         questionId: currentQuestion.id,
         confidenceRating: selectedRating,
@@ -320,7 +323,7 @@ function StudySessionPage({ questionSetId, questionSetName, onBack }: StudySessi
         {/* Compact Timer Component - Fixed Position */}
         <CompactTimer
           questionSetId={questionSetId}
-          isVisible={hasActiveSession}
+          isVisible={hasActiveSession && hasTimerStarted}
           onPhaseChange={(phase) => {
             console.log('Timer phase changed to:', phase);
           }}
@@ -332,6 +335,7 @@ function StudySessionPage({ questionSetId, questionSetName, onBack }: StudySessi
             checkSessionStatus();
             setCurrentQuestion(null);
             setSessionComplete(false);
+            setHasTimerStarted(false);
             console.log('Session reset - refreshing data');
           }}
         />

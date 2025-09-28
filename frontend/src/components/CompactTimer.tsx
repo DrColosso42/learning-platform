@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { TimerService, TimerState, TimerConfig } from '../services/timerService';
 import { StudySessionService } from '../services/studySessionService';
+import { playWorkEndSound, playRestEndSound, initializeAudio } from '../utils/audioUtils';
 
 interface CompactTimerProps {
   questionSetId: number;
@@ -25,6 +26,8 @@ export function CompactTimer({ questionSetId, isVisible, onPhaseChange, onCycleC
   const [workDuration, setWorkDuration] = useState(25 * 60); // 25 minutes
   const [restDuration, setRestDuration] = useState(5 * 60);  // 5 minutes
   const [isInfinite, setIsInfinite] = useState(true); // Default to infinite/continuous mode
+  const [soundEnabled, setSoundEnabled] = useState(true); // Audio notifications enabled by default
+  const [lastAdvanceTime, setLastAdvanceTime] = useState<number>(0); // Prevent rapid advancement
 
   // Update current time every second
   useEffect(() => {
@@ -38,7 +41,24 @@ export function CompactTimer({ questionSetId, isVisible, onPhaseChange, onCycleC
 
         // Auto advance when time runs out in Pomodoro mode
         if (!isInfinite && TimerService.shouldAdvancePhase(timerState)) {
-          handleAdvancePhase();
+          const now = Date.now();
+
+          // Prevent rapid advancement (only advance once per 2 seconds)
+          if (now - lastAdvanceTime > 2000) {
+            setLastAdvanceTime(now);
+
+            // Play sound before advancing
+            if (soundEnabled) {
+              if (timerState.currentPhase === 'work') {
+                playWorkEndSound();
+              } else if (timerState.currentPhase === 'rest') {
+                playRestEndSound();
+              }
+            }
+
+            // Small delay to let sound play before advancing
+            setTimeout(() => handleAdvancePhase(), 100);
+          }
         }
       }
     }, 1000);
@@ -76,6 +96,12 @@ export function CompactTimer({ questionSetId, isVisible, onPhaseChange, onCycleC
 
     try {
       setIsLoading(true);
+
+      // Initialize audio on first user interaction
+      if (soundEnabled) {
+        initializeAudio();
+      }
+
       const config: Partial<TimerConfig> = {
         workDuration,
         restDuration,
@@ -542,6 +568,29 @@ export function CompactTimer({ questionSetId, isVisible, onPhaseChange, onCycleC
             </div>
           </>
         )}
+
+        {/* Sound Settings */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          fontSize: '11px',
+          color: '#1e40af',
+          marginBottom: '6px',
+        }}>
+          <span>Sound Notifications:</span>
+          <input
+            type="checkbox"
+            checked={soundEnabled}
+            onChange={(e) => {
+              setSoundEnabled(e.target.checked);
+              if (e.target.checked) {
+                initializeAudio();
+              }
+            }}
+            style={{ transform: 'scale(0.8)' }}
+          />
+        </div>
 
         {/* Current Phase Display */}
         <div style={{
