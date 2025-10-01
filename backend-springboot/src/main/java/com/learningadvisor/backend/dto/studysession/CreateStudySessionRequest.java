@@ -2,6 +2,7 @@ package com.learningadvisor.backend.dto.studysession;
 
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -11,6 +12,7 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class CreateStudySessionRequest {
 
     @NotNull(message = "Question set ID is required")
