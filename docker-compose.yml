@@ -43,6 +43,26 @@ services:
       - learning-advisor-network
     command: npm run dev
 
+  # Spring Boot Backend API (parallel implementation)
+  backend-springboot:
+    build:
+      context: ./backend-springboot
+      dockerfile: Dockerfile
+    container_name: learning-advisor-backend-springboot
+    environment:
+      DB_HOST: database
+      DB_USER: app_user
+      DB_PASSWORD: app_password
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      JWT_EXPIRES_IN: 604800000
+    ports:
+      - "3002:3002"
+    depends_on:
+      database:
+        condition: service_healthy
+    networks:
+      - learning-advisor-network
+
   # Frontend React App
   frontend:
     build:
