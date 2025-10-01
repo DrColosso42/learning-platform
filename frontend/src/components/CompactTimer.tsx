@@ -89,10 +89,16 @@ export function CompactTimer({ questionSetId, isVisible, onPhaseChange, onCycleC
       setRestDuration(state.restDuration);
       setIsInfinite(state.isInfinite);
 
-      // For infinite mode, show elapsed time instead of remaining time
-      const time = state.isInfinite
-        ? TimerService.getElapsedTime(state)
-        : TimerService.getRemainingTime(state);
+      // Calculate appropriate time based on mode
+      let time = 0;
+      if (state.isInfinite) {
+        // In infinite mode, show elapsed time
+        time = TimerService.getElapsedTime(state);
+      } else {
+        // In timed mode, show remaining time
+        time = TimerService.getRemainingTime(state);
+      }
+
       setCurrentTime(time);
     } catch (error) {
       console.log('Timer not started yet for questionSet', questionSetId);
@@ -504,6 +510,15 @@ export function CompactTimer({ questionSetId, isVisible, onPhaseChange, onCycleC
                   };
                   const updatedState = await TimerService.updateConfig(questionSetId, config);
                   setTimerState(updatedState);
+
+                  // Reset current time display when switching modes
+                  // This prevents showing stale elapsed time values
+                  const time = newInfiniteMode
+                    ? TimerService.getElapsedTime(updatedState)
+                    : TimerService.getRemainingTime(updatedState);
+                  setCurrentTime(time);
+
+                  console.log(`Timer mode switched to ${newInfiniteMode ? 'Continuous' : 'Pomodoro'}`);
                 } catch (error) {
                   console.error('Failed to update timer mode:', error);
                 }
