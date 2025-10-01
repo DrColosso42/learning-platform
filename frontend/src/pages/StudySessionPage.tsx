@@ -66,10 +66,25 @@ function StudySessionPage({ questionSetId, questionSetName, onBack }: StudySessi
         try {
           await TimerService.getTimerState(questionSetId)
           setHasTimerStarted(true)
-          console.log('Existing timer found on session resume')
+          console.log('✅ Existing timer found on session resume')
         } catch (error) {
+          // No timer exists - start one automatically
           setHasTimerStarted(false)
-          console.log('No timer found - will start on first answer submission')
+          console.log('No timer found - starting automatically')
+
+          setTimeout(async () => {
+            try {
+              await TimerService.startTimer(questionSetId, {
+                workDuration: 25 * 60, // 25 minutes default
+                restDuration: 5 * 60,  // 5 minutes default
+                isInfinite: true       // Start in infinite mode
+              })
+              setHasTimerStarted(true)
+              console.log('✅ Timer started automatically on session resume')
+            } catch (timerError) {
+              console.error('❌ Timer auto-start failed on resume:', timerError)
+            }
+          }, 500)
         }
       }
     } catch (error) {
@@ -104,7 +119,23 @@ function StudySessionPage({ questionSetId, questionSetName, onBack }: StudySessi
       setSessionComplete(false)
       await loadNextQuestion()
 
-      // Timer will start automatically when user submits first answer
+      // Start timer automatically after session is fully created
+      // Add a small delay to ensure backend session is fully committed to database
+      setTimeout(async () => {
+        try {
+          await TimerService.startTimer(questionSetId, {
+            workDuration: 25 * 60, // 25 minutes default
+            restDuration: 5 * 60,  // 5 minutes default
+            isInfinite: true       // Start in infinite mode
+          })
+          setHasTimerStarted(true)
+          console.log('✅ Timer started automatically with new session')
+        } catch (timerError) {
+          console.error('❌ Timer auto-start failed:', timerError)
+          // Not critical - user can start timer manually if needed
+        }
+      }, 500)
+
     } catch (error) {
       console.error('Failed to start session:', error)
       if (error instanceof Error && error.message.includes('Unauthorized')) {
@@ -144,26 +175,6 @@ function StudySessionPage({ questionSetId, questionSetName, onBack }: StudySessi
 
     try {
       setIsSubmitting(true)
-
-      // Start timer on first answer submission if not already running
-      try {
-        await TimerService.getTimerState(questionSetId)
-        // Timer already exists, don't start a new one
-        console.log('Timer already running, continuing...')
-      } catch (error) {
-        // No timer exists, start one
-        try {
-          await TimerService.startTimer(questionSetId, {
-            workDuration: 25 * 60, // 25 minutes default
-            restDuration: 5 * 60,  // 5 minutes default
-            isInfinite: true       // Start in infinite mode
-          })
-          setHasTimerStarted(true)
-          console.log('Timer started on first answer submission')
-        } catch (startError) {
-          console.log('Timer start failed:', startError)
-        }
-      }
 
       await StudySessionService.submitAnswer(questionSetId, {
         questionId: currentQuestion.id,
@@ -234,6 +245,23 @@ function StudySessionPage({ questionSetId, questionSetName, onBack }: StudySessi
       setHasActiveSession(true)
       setSessionComplete(false)
       await loadNextQuestion()
+
+      // Start timer automatically after session restart
+      // Add a small delay to ensure backend session is fully committed to database
+      setTimeout(async () => {
+        try {
+          await TimerService.startTimer(questionSetId, {
+            workDuration: 25 * 60, // 25 minutes default
+            restDuration: 5 * 60,  // 5 minutes default
+            isInfinite: true       // Start in infinite mode
+          })
+          setHasTimerStarted(true)
+          console.log('✅ Timer started automatically with session restart')
+        } catch (timerError) {
+          console.error('❌ Timer auto-start failed:', timerError)
+          // Not critical - user can start timer manually if needed
+        }
+      }, 500)
     } catch (error) {
       console.error('Failed to restart session:', error)
       alert('Failed to restart session. Please try again.')
@@ -323,7 +351,7 @@ function StudySessionPage({ questionSetId, questionSetName, onBack }: StudySessi
         {/* Compact Timer Component - Fixed Position */}
         <CompactTimer
           questionSetId={questionSetId}
-          isVisible={hasActiveSession && hasTimerStarted}
+          isVisible={hasActiveSession && !sessionComplete}
           onPhaseChange={(phase) => {
             console.log('Timer phase changed to:', phase);
           }}

@@ -15,6 +15,11 @@ import java.util.Optional;
 public interface TimerSessionRepository extends JpaRepository<TimerSession, Long> {
 
     /**
+     * Find active timer session for a deck session (most recent first)
+     */
+    Optional<TimerSession> findFirstByDeckSessionIdAndCompletedAtIsNullOrderByStartedAtDesc(Long deckSessionId);
+
+    /**
      * Find active timer session for a deck session
      */
     Optional<TimerSession> findFirstByDeckSessionIdAndCompletedAtIsNull(Long deckSessionId);

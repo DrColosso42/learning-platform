@@ -79,10 +79,39 @@ export class TimerService {
       throw new Error(data.error || 'Failed to start timer');
     }
 
-    return {
+    const phaseStartedAt = this.parseTimestamp(data.timer.phaseStartedAt);
+
+    // Debug logging to check for timestamp issues
+    if (phaseStartedAt) {
+      const elapsed = Math.floor((Date.now() - phaseStartedAt.getTime()) / 1000);
+      console.log('🕐 Timer phase started at:', phaseStartedAt.toISOString());
+      console.log('🕐 Current time:', new Date().toISOString());
+      console.log('🕐 Elapsed seconds:', elapsed);
+      if (elapsed > 60 || elapsed < 0) {
+        console.warn('⚠️ Timer appears to have started', elapsed, 'seconds ago - possible timestamp issue');
+      }
+    }
+
+    const timerState = {
       ...data.timer,
-      phaseStartedAt: data.timer.phaseStartedAt ? new Date(data.timer.phaseStartedAt) : null,
+      phaseStartedAt,
     };
+
+    return timerState;
+  }
+
+  /**
+   * Parse timestamp from backend (handles LocalDateTime without timezone)
+   */
+  private static parseTimestamp(timestamp: string | null): Date | null {
+    if (!timestamp) return null;
+
+    // If timestamp doesn't end with Z or timezone offset, append Z to treat as UTC
+    const isoTimestamp = timestamp.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(timestamp)
+      ? timestamp
+      : timestamp + 'Z';
+
+    return new Date(isoTimestamp);
   }
 
   /**
@@ -108,7 +137,7 @@ export class TimerService {
 
     return {
       ...data.timer,
-      phaseStartedAt: data.timer.phaseStartedAt ? new Date(data.timer.phaseStartedAt) : null,
+      phaseStartedAt: this.parseTimestamp(data.timer.phaseStartedAt),
     };
   }
 
@@ -135,7 +164,7 @@ export class TimerService {
 
     return {
       ...data.timer,
-      phaseStartedAt: data.timer.phaseStartedAt ? new Date(data.timer.phaseStartedAt) : null,
+      phaseStartedAt: this.parseTimestamp(data.timer.phaseStartedAt),
     };
   }
 
@@ -162,14 +191,15 @@ export class TimerService {
 
     return {
       ...data.timer,
-      phaseStartedAt: data.timer.phaseStartedAt ? new Date(data.timer.phaseStartedAt) : null,
+      phaseStartedAt: this.parseTimestamp(data.timer.phaseStartedAt),
     };
   }
 
   /**
    * Get current timer state
+   * Returns null if no timer session exists yet
    */
-  static async getTimerState(questionSetId: number): Promise<TimerState> {
+  static async getTimerState(questionSetId: number): Promise<TimerState | null> {
     const authHeader = AuthService.getAuthHeader();
 
     const response = await fetch(`${API_BASE_URL}/api/study-sessions/${questionSetId}/timer`, {
@@ -185,9 +215,14 @@ export class TimerService {
       throw new Error(data.error || 'Failed to get timer state');
     }
 
+    // Return null if no timer exists yet
+    if (!data.timer) {
+      return null;
+    }
+
     return {
       ...data.timer,
-      phaseStartedAt: data.timer.phaseStartedAt ? new Date(data.timer.phaseStartedAt) : null,
+      phaseStartedAt: this.parseTimestamp(data.timer.phaseStartedAt),
     };
   }
 
@@ -244,7 +279,7 @@ export class TimerService {
 
     return {
       ...data.timer,
-      phaseStartedAt: data.timer.phaseStartedAt ? new Date(data.timer.phaseStartedAt) : null,
+      phaseStartedAt: this.parseTimestamp(data.timer.phaseStartedAt),
     };
   }
 
@@ -296,13 +331,16 @@ export class TimerService {
 
   /**
    * Get the elapsed time in current phase
+   * Returns seconds elapsed since phase started
    */
   static getElapsedTime(timerState: TimerState): number {
     if (!timerState.phaseStartedAt || timerState.currentPhase === 'paused' || timerState.currentPhase === 'completed') {
       return 0;
     }
 
-    return Math.floor((Date.now() - timerState.phaseStartedAt.getTime()) / 1000);
+    const elapsed = Math.floor((Date.now() - timerState.phaseStartedAt.getTime()) / 1000);
+    // Return only positive elapsed time, bounded by reasonable limits
+    return Math.max(0, Math.min(elapsed, 86400)); // Cap at 24 hours to prevent display issues
   }
 
   /**

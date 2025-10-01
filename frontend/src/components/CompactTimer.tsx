@@ -40,11 +40,14 @@ export function CompactTimer({ questionSetId, isVisible, onPhaseChange, onCycleC
         setCurrentTime(time);
 
         // Auto advance when time runs out in Pomodoro mode
+        // Only in non-infinite mode and when timer should advance
         if (!isInfinite && TimerService.shouldAdvancePhase(timerState)) {
           const now = Date.now();
 
-          // Prevent rapid advancement (only advance once per 2 seconds)
-          if (now - lastAdvanceTime > 2000) {
+          // Prevent rapid advancement (only advance once per 3 seconds)
+          // This prevents multiple rapid calls if backend is slow to respond
+          if (now - lastAdvanceTime > 3000) {
+            console.log('⏰ Auto-advancing phase - time expired');
             setLastAdvanceTime(now);
 
             // Play sound before advancing
@@ -64,30 +67,52 @@ export function CompactTimer({ questionSetId, isVisible, onPhaseChange, onCycleC
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [timerState, isInfinite]);
+  }, [timerState, isInfinite, lastAdvanceTime, soundEnabled]);
 
-  // Load initial timer state
+  // Load initial timer state and poll for updates
   useEffect(() => {
-    if (isVisible) {
+    if (!isVisible) return;
+
+    // Load immediately
+    loadTimerState();
+
+    // Poll every 2 seconds to detect newly created timers
+    const pollInterval = setInterval(() => {
       loadTimerState();
-    }
+    }, 2000);
+
+    return () => clearInterval(pollInterval);
   }, [isVisible, questionSetId]);
 
   const loadTimerState = async () => {
     try {
       const state = await TimerService.getTimerState(questionSetId);
+
+      // If no timer exists yet, auto-start it with default config
+      if (!state) {
+        console.log('No timer found - auto-starting timer for questionSet', questionSetId);
+        await handleStartTimer();
+        return;
+      }
+
       setTimerState(state);
       setWorkDuration(state.workDuration);
       setRestDuration(state.restDuration);
       setIsInfinite(state.isInfinite);
 
-      // For infinite mode, show elapsed time instead of remaining time
-      const time = state.isInfinite
-        ? TimerService.getElapsedTime(state)
-        : TimerService.getRemainingTime(state);
+      // Calculate appropriate time based on mode
+      let time = 0;
+      if (state.isInfinite) {
+        // In infinite mode, show elapsed time
+        time = TimerService.getElapsedTime(state);
+      } else {
+        // In timed mode, show remaining time
+        time = TimerService.getRemainingTime(state);
+      }
+
       setCurrentTime(time);
     } catch (error) {
-      console.log('Timer not started yet for questionSet', questionSetId);
+      console.error('Error loading timer state:', error);
     }
   };
 
@@ -496,6 +521,15 @@ export function CompactTimer({ questionSetId, isVisible, onPhaseChange, onCycleC
                   };
                   const updatedState = await TimerService.updateConfig(questionSetId, config);
                   setTimerState(updatedState);
+
+                  // Reset current time display when switching modes
+                  // This prevents showing stale elapsed time values
+                  const time = newInfiniteMode
+                    ? TimerService.getElapsedTime(updatedState)
+                    : TimerService.getRemainingTime(updatedState);
+                  setCurrentTime(time);
+
+                  console.log(`Timer mode switched to ${newInfiniteMode ? 'Continuous' : 'Pomodoro'}`);
                 } catch (error) {
                   console.error('Failed to update timer mode:', error);
                 }
