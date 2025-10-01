@@ -1,0 +1,79 @@
+### Login to get JWT token
+POST http://localhost:3002/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "testuser",
+  "password": "testpass"
+}
+
+### Create a project first (replace TOKEN with actual JWT)
+POST http://localhost:3002/api/projects
+Content-Type: application/json
+Authorization: Bearer TOKEN
+
+{
+  "name": "Test Project",
+  "description": "Project for testing decks"
+}
+
+### Create a question set (replace TOKEN and projectId)
+POST http://localhost:3002/api/questions/sets
+Content-Type: application/json
+Authorization: Bearer TOKEN
+
+{
+  "name": "Test Deck",
+  "description": "Testing deck functionality",
+  "projectId": 1
+}
+
+### Get question sets for a project (replace TOKEN and projectId)
+GET http://localhost:3002/api/questions/sets/project/1
+Authorization: Bearer TOKEN
+
+### Get a specific question set (replace TOKEN and setId)
+GET http://localhost:3002/api/questions/sets/1
+Authorization: Bearer TOKEN
+
+### Create a question in the set (replace TOKEN and setId)
+POST http://localhost:3002/api/questions/sets/1/questions
+Content-Type: application/json
+Authorization: Bearer TOKEN
+
+{
+  "questionText": "What is 2+2?",
+  "answerText": "4",
+  "difficulty": 1
+}
+
+### Bulk create questions (replace TOKEN)
+POST http://localhost:3002/api/questions/bulk
+Content-Type: application/json
+Authorization: Bearer TOKEN
+
+{
+  "questionSetId": 1,
+  "questions": [
+    {
+      "questionText": "What is the capital of France?",
+      "answerText": "Paris",
+      "difficulty": 1
+    },
+    {
+      "questionText": "What is 5*5?",
+      "answerText": "25",
+      "difficulty": 2
+    }
+  ]
+}
+
+### Create a study session (replace TOKEN)
+POST http://localhost:3002/api/study-sessions
+Content-Type: application/json
+Authorization: Bearer TOKEN
+
+{
+  "questionSetId": 1,
+  "mode": "shuffle"
+}
