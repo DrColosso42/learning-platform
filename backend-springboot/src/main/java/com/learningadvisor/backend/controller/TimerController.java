@@ -9,7 +9,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -35,11 +34,9 @@ public class TimerController {
     public ResponseEntity<Map<String, Object>> startTimer(
             @PathVariable Long questionSetId,
             @RequestBody(required = false) TimerConfigRequest config,
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @AuthenticationPrincipal Long userId) {
 
         try {
-            // Get user ID from username
-            Long userId = Long.parseLong(userDetails.getUsername());
 
             log.info("Starting timer for user {} questionSet {}", userId, questionSetId);
 
@@ -71,10 +68,9 @@ public class TimerController {
     @PostMapping("/pause")
     public ResponseEntity<Map<String, Object>> pauseTimer(
             @PathVariable Long questionSetId,
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @AuthenticationPrincipal Long userId) {
 
         try {
-            Long userId = Long.parseLong(userDetails.getUsername());
 
             log.info("Pausing timer for user {} questionSet {}", userId, questionSetId);
 
@@ -101,10 +97,9 @@ public class TimerController {
     @PostMapping("/advance")
     public ResponseEntity<Map<String, Object>> advancePhase(
             @PathVariable Long questionSetId,
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @AuthenticationPrincipal Long userId) {
 
         try {
-            Long userId = Long.parseLong(userDetails.getUsername());
 
             log.info("Advancing timer phase for user {} questionSet {}", userId, questionSetId);
 
@@ -131,10 +126,9 @@ public class TimerController {
     @PostMapping("/stop")
     public ResponseEntity<Map<String, Object>> stopTimer(
             @PathVariable Long questionSetId,
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @AuthenticationPrincipal Long userId) {
 
         try {
-            Long userId = Long.parseLong(userDetails.getUsername());
 
             log.info("Stopping timer for user {} questionSet {}", userId, questionSetId);
 
@@ -161,10 +155,9 @@ public class TimerController {
     @GetMapping
     public ResponseEntity<Map<String, Object>> getTimerState(
             @PathVariable Long questionSetId,
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @AuthenticationPrincipal Long userId) {
 
         try {
-            Long userId = Long.parseLong(userDetails.getUsername());
 
             log.info("Getting timer state for user {} questionSet {}", userId, questionSetId);
 
@@ -192,10 +185,9 @@ public class TimerController {
     public ResponseEntity<Map<String, Object>> updateConfig(
             @PathVariable Long questionSetId,
             @RequestBody TimerConfigRequest config,
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @AuthenticationPrincipal Long userId) {
 
         try {
-            Long userId = Long.parseLong(userDetails.getUsername());
 
             log.info("Updating timer config for user {} questionSet {}", userId, questionSetId);
 
@@ -229,10 +221,9 @@ public class TimerController {
     @GetMapping("/stats")
     public ResponseEntity<Map<String, Object>> getTimerStats(
             @PathVariable Long questionSetId,
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @AuthenticationPrincipal Long userId) {
 
         try {
-            Long userId = Long.parseLong(userDetails.getUsername());
 
             log.info("Getting timer stats for user {} questionSet {}", userId, questionSetId);
 
