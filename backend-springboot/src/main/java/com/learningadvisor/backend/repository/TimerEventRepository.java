@@ -13,9 +13,14 @@ import java.util.List;
 public interface TimerEventRepository extends JpaRepository<TimerEvent, Long> {
 
     /**
-     * Find all events for a timer session ordered by timestamp
+     * Find all events for a timer session ordered by timestamp (ascending)
      */
     List<TimerEvent> findByTimerSessionIdOrderByTimestampAsc(Long timerSessionId);
+
+    /**
+     * Find all events for a timer session ordered by timestamp (descending)
+     */
+    List<TimerEvent> findByTimerSessionIdOrderByTimestampDesc(Long timerSessionId);
 
     /**
      * Count events for a timer session
