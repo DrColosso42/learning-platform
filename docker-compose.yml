@@ -20,31 +20,9 @@ services:
     networks:
       - learning-advisor-network
 
-  # Backend API
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: learning-advisor-backend
-    environment:
-      NODE_ENV: development
-      DATABASE_URL: mysql://app_user:app_password@database:3306/learning_advisor
-      JWT_SECRET: your-super-secret-jwt-key-change-in-production
-      PORT: 3001
-    ports:
-      - "3001:3001"
-    volumes:
-      - ./backend:/app
-      - /app/node_modules
-    depends_on:
-      database:
-        condition: service_healthy
-    networks:
-      - learning-advisor-network
-    command: npm run dev
 
   # Spring Boot Backend API (parallel implementation)
-  backend-springboot:
+  backend:
     build:
       context: ./backend-springboot
       dockerfile: Dockerfile
