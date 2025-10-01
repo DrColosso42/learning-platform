@@ -122,13 +122,39 @@ public class StatisticsService {
 
         log.info("Found {} sessions in date range", sessions.size());
 
-        // Group points by date
+        // Group points by date using delta calculation
+        // Need to get previous scores from before the date range for accurate delta calculation
         Map<LocalDate, Integer> pointsByDate = new HashMap<>();
-        for (StudySession session : sessions) {
-            for (SessionAnswer answer : session.getSessionAnswers()) {
-                LocalDate answerDate = answer.getAnsweredAt().toLocalDate();
-                pointsByDate.merge(answerDate, answer.getUserRating(), Integer::sum);
+
+        // Get ALL user sessions to build complete score history
+        List<StudySession> allUserSessions = studySessionRepository.findByUserId(userId);
+
+        // Collect all answers across all sessions (including those before date range) and sort by timestamp
+        List<SessionAnswer> allAnswers = new ArrayList<>();
+        for (StudySession session : allUserSessions) {
+            allAnswers.addAll(session.getSessionAnswers());
+        }
+        allAnswers.sort(Comparator.comparing(SessionAnswer::getAnsweredAt));
+
+        // Track previous scores per question and calculate deltas only for answers in date range
+        Map<Long, Integer> previousScoreByQuestion = new HashMap<>();
+
+        for (SessionAnswer answer : allAnswers) {
+            LocalDate answerDate = answer.getAnsweredAt().toLocalDate();
+            Long questionId = answer.getQuestionId();
+            int currentScore = answer.getUserRating();
+
+            // Calculate delta: new score - previous score (0 if first attempt)
+            int previousScore = previousScoreByQuestion.getOrDefault(questionId, 0);
+            int delta = currentScore - previousScore;
+
+            // Only add delta if answer is within the date range
+            if (!answerDate.isBefore(startDate) && !answerDate.isAfter(endDate)) {
+                pointsByDate.merge(answerDate, delta, Integer::sum);
             }
+
+            // Always update previous score for this question (even for answers outside date range)
+            previousScoreByQuestion.put(questionId, currentScore);
         }
 
         log.info("Points by date: {}", pointsByDate);
