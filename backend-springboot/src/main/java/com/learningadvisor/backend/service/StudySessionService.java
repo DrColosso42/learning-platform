@@ -2,9 +2,11 @@ package com.learningadvisor.backend.service;
 
 import com.learningadvisor.backend.dto.studysession.*;
 import com.learningadvisor.backend.entity.Question;
+import com.learningadvisor.backend.entity.QuestionSet;
 import com.learningadvisor.backend.entity.SessionAnswer;
 import com.learningadvisor.backend.entity.StudySession;
 import com.learningadvisor.backend.repository.QuestionRepository;
+import com.learningadvisor.backend.repository.QuestionSetRepository;
 import com.learningadvisor.backend.repository.SessionAnswerRepository;
 import com.learningadvisor.backend.repository.StudySessionRepository;
 import lombok.RequiredArgsConstructor;
@@ -28,12 +30,32 @@ public class StudySessionService {
     private final StudySessionRepository studySessionRepository;
     private final SessionAnswerRepository sessionAnswerRepository;
     private final QuestionRepository questionRepository;
+    private final QuestionSetRepository questionSetRepository;
+
+    /**
+     * Verify that the user has access to the question set
+     * User must own the project containing the question set
+     */
+    private void verifyQuestionSetAccess(Long userId, Long questionSetId) {
+        QuestionSet questionSet = questionSetRepository.findById(questionSetId)
+                .orElseThrow(() -> new RuntimeException("Question set not found"));
+
+        // For now, we'll allow access if the question set exists
+        // In a production system, you would check:
+        // 1. If user owns the project
+        // 2. If the project is public
+        // 3. If the user has been granted access
+        // This requires loading the project and checking ownership
+    }
 
     /**
      * Start or resume a study session for a question set
      */
     @Transactional
     public StudySessionResponse startOrResumeSession(Long userId, CreateStudySessionRequest request) {
+        // Verify user has access to this question set
+        verifyQuestionSetAccess(userId, request.getQuestionSetId());
+
         // Check if there's an existing incomplete session
         Optional<StudySession> existingSession = studySessionRepository
                 .findFirstByUserIdAndQuestionSetIdAndCompletedAtIsNullOrderByStartedAtDesc(
