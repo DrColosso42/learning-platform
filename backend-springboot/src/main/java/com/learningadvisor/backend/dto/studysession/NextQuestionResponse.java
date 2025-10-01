@@ -1,6 +1,5 @@
 package com.learningadvisor.backend.dto.studysession;
 
-import com.learningadvisor.backend.entity.Question;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -14,7 +13,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 public class NextQuestionResponse {
-    private Question question;
+    private QuestionDTO question;
     private Integer questionNumber; // Position in question set (1-based)
     private Integer previousScore; // Previous confidence rating for this question
     private Boolean sessionComplete;

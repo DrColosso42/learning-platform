@@ -41,4 +41,9 @@ public interface SessionAnswerRepository extends JpaRepository<SessionAnswer, Lo
      */
     @Query("SELECT COUNT(sa) FROM SessionAnswer sa JOIN sa.session s WHERE s.userId = :userId AND sa.answeredAt >= :since")
     long countAnswersByUserSince(Long userId, LocalDateTime since);
+
+    /**
+     * Delete all answers for a session
+     */
+    void deleteBySessionId(Long sessionId);
 }

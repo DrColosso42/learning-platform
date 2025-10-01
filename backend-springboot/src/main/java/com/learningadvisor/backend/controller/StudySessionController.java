@@ -194,4 +194,140 @@ public class StudySessionController {
             return ResponseEntity.status(500).body(error);
         }
     }
+
+    /**
+     * Reset session - complete deletion and fresh start
+     */
+    @PostMapping("/{questionSetId}/reset")
+    public ResponseEntity<Map<String, Object>> resetSession(
+            @PathVariable Long questionSetId,
+            @RequestBody(required = false) Map<String, String> requestBody) {
+        try {
+            Long userId = getUserIdFromContext();
+            String mode = requestBody != null && requestBody.containsKey("mode")
+                    ? requestBody.get("mode")
+                    : "front-to-end";
+
+            log.info("Reset session for questionSet {} user {}", questionSetId, userId);
+
+            StudySessionResponse session = studySessionService.resetSession(userId, questionSetId, mode);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Session reset successfully");
+            response.put("session", session);
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error resetting study session", e);
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", "Failed to reset study session");
+            return ResponseEntity.status(500).body(error);
+        }
+    }
+
+    /**
+     * Get questions with selection probabilities for sidebar
+     */
+    @GetMapping("/{questionSetId}/questions-probabilities")
+    public ResponseEntity<Map<String, Object>> getQuestionsWithProbabilities(
+            @PathVariable Long questionSetId) {
+        try {
+            Long userId = getUserIdFromContext();
+            QuestionProbabilitiesResponse result = studySessionService.getQuestionsWithProbabilities(
+                    userId, questionSetId);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("questions", result.getQuestions());
+            response.put("totalWeight", result.getTotalWeight());
+            response.put("currentQuestionId", result.getCurrentQuestionId());
+
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            if (e.getMessage().equals("No active session found")) {
+                Map<String, Object> error = new HashMap<>();
+                error.put("error", "No active session found");
+                return ResponseEntity.status(404).body(error);
+            }
+
+            log.error("Error getting questions with probabilities", e);
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", "Failed to get questions with probabilities");
+            return ResponseEntity.status(500).body(error);
+        }
+    }
+
+    /**
+     * Select a specific question for study (if eligible)
+     */
+    @PostMapping("/{questionSetId}/select-question")
+    public ResponseEntity<Map<String, Object>> selectQuestion(
+            @PathVariable Long questionSetId,
+            @Valid @RequestBody SelectQuestionRequest request) {
+        try {
+            Long userId = getUserIdFromContext();
+            NextQuestionResponse result = studySessionService.selectQuestion(
+                    userId, questionSetId, request.getQuestionId());
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("question", result.getQuestion());
+            response.put("questionNumber", result.getQuestionNumber());
+            response.put("previousScore", result.getPreviousScore());
+            response.put("sessionComplete", result.getSessionComplete());
+            response.put("progress", result.getProgress());
+
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            if (e.getMessage().contains("not selectable") || e.getMessage().contains("not found")) {
+                Map<String, Object> error = new HashMap<>();
+                error.put("error", e.getMessage());
+                return ResponseEntity.status(400).body(error);
+            }
+            if (e.getMessage().equals("No active session found")) {
+                Map<String, Object> error = new HashMap<>();
+                error.put("error", "No active session found");
+                return ResponseEntity.status(404).body(error);
+            }
+
+            log.error("Error selecting question", e);
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", "Failed to select question");
+            return ResponseEntity.status(500).body(error);
+        }
+    }
+
+    /**
+     * Get hypothetical probabilities for live updates
+     */
+    @PostMapping("/{questionSetId}/hypothetical-probabilities")
+    public ResponseEntity<Map<String, Object>> getQuestionsWithHypotheticalProbabilities(
+            @PathVariable Long questionSetId,
+            @Valid @RequestBody HypotheticalProbabilitiesRequest request) {
+        try {
+            Long userId = getUserIdFromContext();
+            QuestionProbabilitiesResponse result = studySessionService.getQuestionsWithHypotheticalProbabilities(
+                    userId, questionSetId, request.getQuestionId(), request.getHypotheticalRating());
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("questions", result.getQuestions());
+            response.put("totalWeight", result.getTotalWeight());
+            response.put("currentQuestionId", result.getCurrentQuestionId());
+
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            if (e.getMessage().equals("No active session found")) {
+                Map<String, Object> error = new HashMap<>();
+                error.put("error", "No active session found");
+                return ResponseEntity.status(404).body(error);
+            }
+
+            log.error("Error getting hypothetical probabilities", e);
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", "Failed to get hypothetical probabilities");
+            return ResponseEntity.status(500).body(error);
+        }
+    }
 }

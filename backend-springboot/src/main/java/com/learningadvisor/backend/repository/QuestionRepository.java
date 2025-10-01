@@ -18,6 +18,11 @@ public interface QuestionRepository extends JpaRepository<Question, Long> {
     List<Question> findByQuestionSetIdOrderByCreatedAtAsc(Long questionSetId);
 
     /**
+     * Find all questions for a question set ordered by ID
+     */
+    List<Question> findByQuestionSetIdOrderByIdAsc(Long questionSetId);
+
+    /**
      * Count questions in a question set
      */
     long countByQuestionSetId(Long questionSetId);

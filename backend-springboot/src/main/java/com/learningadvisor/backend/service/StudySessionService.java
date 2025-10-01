@@ -118,8 +118,14 @@ public class StudySessionService {
             previousScore = lastAttempt != null ? lastAttempt.getUserRating() : null;
         }
 
+        // Convert to DTO to avoid lazy loading issues
+        QuestionDTO questionDTO = null;
+        if (nextQuestion != null) {
+            questionDTO = QuestionDTO.fromEntity(nextQuestion);
+        }
+
         return NextQuestionResponse.builder()
-                .question(nextQuestion)
+                .question(questionDTO)
                 .questionNumber(questionNumber)
                 .previousScore(previousScore)
                 .sessionComplete(false)
@@ -390,5 +396,337 @@ public class StudySessionService {
 
         // Fallback to first question if something goes wrong
         return weights.keySet().iterator().next();
+    }
+
+    /**
+     * Reset session - delete all progress and timer data, start fresh
+     */
+    @Transactional
+    public StudySessionResponse resetSession(Long userId, Long questionSetId, String mode) {
+        log.info("Resetting ALL sessions for user {} questionSet {}", userId, questionSetId);
+
+        // Find ALL sessions for this user and questionSet (both active and completed)
+        List<StudySession> allSessions = studySessionRepository.findByUserId(userId).stream()
+                .filter(s -> s.getQuestionSetId().equals(questionSetId))
+                .collect(Collectors.toList());
+
+        if (!allSessions.isEmpty()) {
+            log.info("Deleting {} sessions and all associated data", allSessions.size());
+
+            // Delete all session answers for these sessions
+            for (StudySession session : allSessions) {
+                sessionAnswerRepository.deleteBySessionId(session.getId());
+            }
+
+            // Delete all study sessions
+            studySessionRepository.deleteAll(allSessions);
+
+            log.info("All sessions and data deleted successfully");
+        } else {
+            log.info("No sessions found to reset");
+        }
+
+        // Create a fresh new session
+        log.info("Creating fresh session");
+        CreateStudySessionRequest request = CreateStudySessionRequest.builder()
+                .questionSetId(questionSetId)
+                .mode(mode != null ? mode : "front-to-end")
+                .build();
+
+        return startOrResumeSession(userId, request);
+    }
+
+    /**
+     * Get all questions with their selection probabilities for sidebar visualization
+     */
+    @Transactional(readOnly = true)
+    public QuestionProbabilitiesResponse getQuestionsWithProbabilities(Long userId, Long questionSetId) {
+        // Get current session
+        StudySession session = studySessionRepository
+                .findFirstByUserIdAndQuestionSetIdAndCompletedAtIsNullOrderByStartedAtDesc(
+                        userId, questionSetId)
+                .orElseThrow(() -> new RuntimeException("No active session found"));
+
+        // Get all questions for this question set
+        List<Question> allQuestions = questionRepository.findByQuestionSetIdOrderByIdAsc(questionSetId);
+
+        // Get session answers
+        List<SessionAnswer> sessionAnswers = sessionAnswerRepository.findBySessionIdOrderByAnsweredAtAsc(session.getId());
+
+        // Get questions with their last attempts
+        Map<Long, SessionAnswer> lastAttempts = getLastAttempts(sessionAnswers);
+
+        // Filter eligible questions (unseen or rating < 5)
+        List<Question> eligibleQuestions = allQuestions.stream()
+                .filter(q -> {
+                    SessionAnswer lastAttempt = lastAttempts.get(q.getId());
+                    return lastAttempt == null || lastAttempt.getUserRating() < 5;
+                })
+                .collect(Collectors.toList());
+
+        // Get answer sequence for recency calculation
+        List<Long> answerSequence = getAnswerSequence(sessionAnswers);
+
+        // Apply mode-specific filtering (same logic as selectNextQuestion)
+        List<Question> finalCandidates;
+
+        if ("front-to-end".equals(session.getMode())) {
+            // Find first unseen question by creation order
+            Question firstUnseen = allQuestions.stream()
+                    .filter(q -> !lastAttempts.containsKey(q.getId()) && eligibleQuestions.contains(q))
+                    .findFirst()
+                    .orElse(null);
+
+            if (firstUnseen != null) {
+                // Include first unseen + all seen questions with rating < 5
+                finalCandidates = new ArrayList<>();
+                finalCandidates.add(firstUnseen);
+                finalCandidates.addAll(eligibleQuestions.stream()
+                        .filter(q -> lastAttempts.containsKey(q.getId()))
+                        .collect(Collectors.toList()));
+            } else {
+                // No unseen questions, use all eligible candidates
+                finalCandidates = eligibleQuestions;
+            }
+        } else {
+            // Shuffle mode: all eligible questions are candidates
+            finalCandidates = eligibleQuestions;
+        }
+
+        // Calculate weights for ALL questions (including ineligible ones)
+        List<QuestionProbabilityDTO> questionsWithWeights = new ArrayList<>();
+        for (int i = 0; i < allQuestions.size(); i++) {
+            Question question = allQuestions.get(i);
+            boolean isCandidate = finalCandidates.stream().anyMatch(fc -> fc.getId().equals(question.getId()));
+            double weight = isCandidate ? calculateQuestionWeight(question, lastAttempts.get(question.getId()), answerSequence) : 0.0;
+
+            // Allow selection of mastered questions (rating 5) even though they have 0% algorithm chance
+            SessionAnswer lastAttempt = lastAttempts.get(question.getId());
+            boolean isMastered = lastAttempt != null && lastAttempt.getUserRating() == 5;
+            boolean isSelectable = weight > 0 || isMastered;
+
+            QuestionProbabilityDTO.LastAttemptDTO lastAttemptDTO = null;
+            if (lastAttempt != null) {
+                lastAttemptDTO = QuestionProbabilityDTO.LastAttemptDTO.builder()
+                        .userRating(lastAttempt.getUserRating())
+                        .build();
+            }
+
+            questionsWithWeights.add(QuestionProbabilityDTO.builder()
+                    .id(question.getId())
+                    .questionText(question.getQuestionText())
+                    .questionNumber(i + 1)
+                    .lastAttempt(lastAttemptDTO)
+                    .weight(weight)
+                    .isSelectable(isSelectable)
+                    .build());
+        }
+
+        // Calculate total weight of eligible questions
+        double totalWeight = questionsWithWeights.stream()
+                .mapToDouble(QuestionProbabilityDTO::getWeight)
+                .sum();
+
+        // Calculate probabilities
+        List<QuestionProbabilityDTO> questionsWithProbabilities = questionsWithWeights.stream()
+                .map(q -> {
+                    double probability = totalWeight > 0 ? (q.getWeight() / totalWeight) * 100 : 0.0;
+                    q.setSelectionProbability(probability);
+                    return q;
+                })
+                .collect(Collectors.toList());
+
+        // Get current question ID from last session answer or null if starting
+        Long currentQuestionId = !sessionAnswers.isEmpty()
+                ? sessionAnswers.get(sessionAnswers.size() - 1).getQuestionId()
+                : null;
+
+        return QuestionProbabilitiesResponse.builder()
+                .questions(questionsWithProbabilities)
+                .totalWeight(totalWeight)
+                .currentQuestionId(currentQuestionId)
+                .build();
+    }
+
+    /**
+     * Select a specific question for study (if eligible)
+     */
+    @Transactional(readOnly = true)
+    public NextQuestionResponse selectQuestion(Long userId, Long questionSetId, Long questionId) {
+        // Get current session
+        StudySession session = studySessionRepository
+                .findFirstByUserIdAndQuestionSetIdAndCompletedAtIsNullOrderByStartedAtDesc(
+                        userId, questionSetId)
+                .orElseThrow(() -> new RuntimeException("No active session found"));
+
+        // Get all questions for this question set
+        List<Question> allQuestions = questionRepository.findByQuestionSetIdOrderByIdAsc(questionSetId);
+
+        // Find the requested question
+        Question requestedQuestion = allQuestions.stream()
+                .filter(q -> q.getId().equals(questionId))
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("Question not found"));
+
+        // Get session answers
+        List<SessionAnswer> sessionAnswers = sessionAnswerRepository.findBySessionIdOrderByAnsweredAtAsc(session.getId());
+
+        // Get questions with their last attempts
+        Map<Long, SessionAnswer> lastAttempts = getLastAttempts(sessionAnswers);
+
+        // Check if question is selectable
+        SessionAnswer lastAttempt = lastAttempts.get(questionId);
+        boolean isEligible = lastAttempt == null || lastAttempt.getUserRating() < 5;
+        boolean isMastered = lastAttempt != null && lastAttempt.getUserRating() == 5;
+
+        // Get answer sequence for recency calculation
+        List<Long> answerSequence = getAnswerSequence(sessionAnswers);
+
+        // Calculate weight
+        double weight = isEligible ? calculateQuestionWeight(requestedQuestion, lastAttempt, answerSequence) : 0.0;
+
+        // Allow selection if either has weight > 0 OR is mastered (rating 5)
+        boolean isSelectable = weight > 0 || isMastered;
+
+        if (!isSelectable) {
+            throw new RuntimeException("Question is not currently selectable due to recency penalty");
+        }
+
+        // Calculate question number (1-based position in original question set)
+        int questionNumber = allQuestions.indexOf(requestedQuestion) + 1;
+
+        // Find previous score for this question
+        Integer previousScore = lastAttempt != null ? lastAttempt.getUserRating() : null;
+
+        // Calculate progress
+        SessionProgressDTO progress = calculateProgress(allQuestions, sessionAnswers);
+
+        return NextQuestionResponse.builder()
+                .question(QuestionDTO.fromEntity(requestedQuestion))
+                .questionNumber(questionNumber)
+                .previousScore(previousScore)
+                .sessionComplete(false) // Never complete when manually selecting
+                .progress(progress)
+                .build();
+    }
+
+    /**
+     * Get probabilities with a hypothetical answer (for live updates)
+     */
+    @Transactional(readOnly = true)
+    public QuestionProbabilitiesResponse getQuestionsWithHypotheticalProbabilities(
+            Long userId,
+            Long questionSetId,
+            Long questionId,
+            Integer hypotheticalRating) {
+
+        // Get current session
+        StudySession session = studySessionRepository
+                .findFirstByUserIdAndQuestionSetIdAndCompletedAtIsNullOrderByStartedAtDesc(
+                        userId, questionSetId)
+                .orElseThrow(() -> new RuntimeException("No active session found"));
+
+        // Get all questions for this question set
+        List<Question> allQuestions = questionRepository.findByQuestionSetIdOrderByIdAsc(questionSetId);
+
+        // Get session answers
+        List<SessionAnswer> sessionAnswers = new ArrayList<>(
+                sessionAnswerRepository.findBySessionIdOrderByAnsweredAtAsc(session.getId()));
+
+        // Create a hypothetical answer for the current question
+        SessionAnswer hypotheticalAnswer = SessionAnswer.builder()
+                .sessionId(session.getId())
+                .questionId(questionId)
+                .userRating(hypotheticalRating)
+                .answeredAt(LocalDateTime.now())
+                .build();
+
+        // Add the hypothetical answer to the session answers (without saving to DB)
+        sessionAnswers.add(hypotheticalAnswer);
+
+        // Get questions with their last attempts (including hypothetical)
+        Map<Long, SessionAnswer> lastAttempts = getLastAttempts(sessionAnswers);
+
+        // Filter eligible questions (unseen or rating < 5)
+        List<Question> eligibleQuestions = allQuestions.stream()
+                .filter(q -> {
+                    SessionAnswer lastAttempt = lastAttempts.get(q.getId());
+                    return lastAttempt == null || lastAttempt.getUserRating() < 5;
+                })
+                .collect(Collectors.toList());
+
+        // Get answer sequence for recency calculation (including hypothetical)
+        List<Long> answerSequence = getAnswerSequence(sessionAnswers);
+
+        // Apply mode-specific filtering (same logic as getQuestionsWithProbabilities)
+        List<Question> finalCandidates;
+
+        if ("front-to-end".equals(session.getMode())) {
+            Question firstUnseen = allQuestions.stream()
+                    .filter(q -> !lastAttempts.containsKey(q.getId()) && eligibleQuestions.contains(q))
+                    .findFirst()
+                    .orElse(null);
+
+            if (firstUnseen != null) {
+                finalCandidates = new ArrayList<>();
+                finalCandidates.add(firstUnseen);
+                finalCandidates.addAll(eligibleQuestions.stream()
+                        .filter(q -> lastAttempts.containsKey(q.getId()))
+                        .collect(Collectors.toList()));
+            } else {
+                finalCandidates = eligibleQuestions;
+            }
+        } else {
+            finalCandidates = eligibleQuestions;
+        }
+
+        // Calculate weights for ALL questions (including ineligible ones)
+        List<QuestionProbabilityDTO> questionsWithWeights = new ArrayList<>();
+        for (int i = 0; i < allQuestions.size(); i++) {
+            Question question = allQuestions.get(i);
+            boolean isCandidate = finalCandidates.stream().anyMatch(fc -> fc.getId().equals(question.getId()));
+            double weight = isCandidate ? calculateQuestionWeight(question, lastAttempts.get(question.getId()), answerSequence) : 0.0;
+
+            // Allow selection of mastered questions (rating 5) even though they have 0% algorithm chance
+            SessionAnswer lastAttempt = lastAttempts.get(question.getId());
+            boolean isMastered = lastAttempt != null && lastAttempt.getUserRating() == 5;
+            boolean isSelectable = weight > 0 || isMastered;
+
+            QuestionProbabilityDTO.LastAttemptDTO lastAttemptDTO = null;
+            if (lastAttempt != null) {
+                lastAttemptDTO = QuestionProbabilityDTO.LastAttemptDTO.builder()
+                        .userRating(lastAttempt.getUserRating())
+                        .build();
+            }
+
+            questionsWithWeights.add(QuestionProbabilityDTO.builder()
+                    .id(question.getId())
+                    .questionText(question.getQuestionText())
+                    .questionNumber(i + 1)
+                    .lastAttempt(lastAttemptDTO)
+                    .weight(weight)
+                    .isSelectable(isSelectable)
+                    .build());
+        }
+
+        // Calculate total weight of eligible questions
+        double totalWeight = questionsWithWeights.stream()
+                .mapToDouble(QuestionProbabilityDTO::getWeight)
+                .sum();
+
+        // Calculate probabilities
+        List<QuestionProbabilityDTO> questionsWithProbabilities = questionsWithWeights.stream()
+                .map(q -> {
+                    double probability = totalWeight > 0 ? (q.getWeight() / totalWeight) * 100 : 0.0;
+                    q.setSelectionProbability(probability);
+                    return q;
+                })
+                .collect(Collectors.toList());
+
+        return QuestionProbabilitiesResponse.builder()
+                .questions(questionsWithProbabilities)
+                .totalWeight(totalWeight)
+                .currentQuestionId(questionId) // The question being rated
+                .build();
     }
 }
