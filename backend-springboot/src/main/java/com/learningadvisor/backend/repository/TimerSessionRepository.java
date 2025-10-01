@@ -20,6 +20,11 @@ public interface TimerSessionRepository extends JpaRepository<TimerSession, Long
     Optional<TimerSession> findFirstByDeckSessionIdAndCompletedAtIsNull(Long deckSessionId);
 
     /**
+     * Find all timer sessions for a deck session
+     */
+    java.util.List<TimerSession> findByDeckSessionId(Long deckSessionId);
+
+    /**
      * Find all timer sessions for a user
      */
     @Query("SELECT ts FROM TimerSession ts WHERE ts.userId = :userId ORDER BY ts.startedAt DESC")

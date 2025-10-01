@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -41,4 +42,34 @@ public interface StudySessionRepository extends JpaRepository<StudySession, Long
      * Delete all sessions for a user and question set
      */
     void deleteByUserIdAndQuestionSetId(Long userId, Long questionSetId);
+
+    /**
+     * Find all sessions for a user
+     */
+    @Query("SELECT DISTINCT s FROM StudySession s LEFT JOIN FETCH s.sessionAnswers WHERE s.userId = :userId")
+    List<StudySession> findByUserId(Long userId);
+
+    /**
+     * Find sessions for a user ordered by started date descending
+     */
+    @Query("SELECT DISTINCT s FROM StudySession s LEFT JOIN FETCH s.sessionAnswers LEFT JOIN FETCH s.questionSet qs LEFT JOIN FETCH qs.project WHERE s.userId = :userId ORDER BY s.startedAt DESC")
+    List<StudySession> findByUserIdOrderByStartedAtDesc(Long userId);
+
+    /**
+     * Find sessions in date range
+     */
+    @Query("SELECT DISTINCT s FROM StudySession s LEFT JOIN FETCH s.sessionAnswers WHERE s.userId = :userId AND s.startedAt BETWEEN :startDate AND :endDate")
+    List<StudySession> findByUserIdAndStartedAtBetween(Long userId, LocalDateTime startDate, LocalDateTime endDate);
+
+    /**
+     * Find sessions started after a certain date
+     */
+    @Query("SELECT s FROM StudySession s WHERE s.userId = :userId AND s.startedAt > :startDate")
+    List<StudySession> findByUserIdAndStartedAtAfter(Long userId, LocalDateTime startDate);
+
+    /**
+     * Find completed sessions ordered by completion date descending
+     */
+    @Query("SELECT s FROM StudySession s WHERE s.userId = :userId AND s.completedAt IS NOT NULL ORDER BY s.completedAt DESC")
+    List<StudySession> findByUserIdAndCompletedAtNotNullOrderByCompletedAtDesc(Long userId);
 }
