@@ -66,11 +66,19 @@ export function CompactTimer({ questionSetId, isVisible, onPhaseChange, onCycleC
     return () => clearInterval(interval);
   }, [timerState, isInfinite]);
 
-  // Load initial timer state
+  // Load initial timer state and poll for updates
   useEffect(() => {
-    if (isVisible) {
+    if (!isVisible) return;
+
+    // Load immediately
+    loadTimerState();
+
+    // Poll every 2 seconds to detect newly created timers
+    const pollInterval = setInterval(() => {
       loadTimerState();
-    }
+    }, 2000);
+
+    return () => clearInterval(pollInterval);
   }, [isVisible, questionSetId]);
 
   const loadTimerState = async () => {
