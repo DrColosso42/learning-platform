@@ -250,6 +250,7 @@ public class TimerService {
         // Check if mode is changing from infinite to timed or vice versa
         boolean modeChanging = isInfinite != null && !isInfinite.equals(timerSession.getIsInfinite());
 
+        // Update duration settings
         if (workDuration != null) {
             timerSession.setWorkDuration(workDuration);
         }
@@ -261,7 +262,7 @@ public class TimerService {
         }
 
         // Reset phase start time when switching modes to prevent instant transitions
-        // This ensures that in timed mode, the user gets the full duration
+        // This ensures that in timed mode, the user gets the full duration from the moment of switch
         if (modeChanging && timerSession.getCurrentPhase() != null &&
             !timerSession.getCurrentPhase().equals("paused") &&
             !timerSession.getCurrentPhase().equals("completed")) {
@@ -269,10 +270,17 @@ public class TimerService {
             LocalDateTime now = LocalDateTime.now();
             timerSession.setPhaseStartedAt(now);
 
-            log.info("🔄 Mode changed - resetting phase start time to prevent instant transitions");
+            log.info("🔄 Mode switched from {} to {} - reset phase start time",
+                    timerSession.getIsInfinite() ? "timed" : "infinite",
+                    isInfinite ? "infinite" : "timed");
         }
 
-        return timerSessionRepository.save(timerSession);
+        TimerSession saved = timerSessionRepository.save(timerSession);
+
+        log.info("⚙️ Updated timer config - isInfinite: {}, workDuration: {}, restDuration: {}, phaseStartedAt: {}",
+                saved.getIsInfinite(), saved.getWorkDuration(), saved.getRestDuration(), saved.getPhaseStartedAt());
+
+        return saved;
     }
 
     /**

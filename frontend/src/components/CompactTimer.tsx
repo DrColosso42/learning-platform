@@ -40,11 +40,14 @@ export function CompactTimer({ questionSetId, isVisible, onPhaseChange, onCycleC
         setCurrentTime(time);
 
         // Auto advance when time runs out in Pomodoro mode
+        // Only in non-infinite mode and when timer should advance
         if (!isInfinite && TimerService.shouldAdvancePhase(timerState)) {
           const now = Date.now();
 
-          // Prevent rapid advancement (only advance once per 2 seconds)
-          if (now - lastAdvanceTime > 2000) {
+          // Prevent rapid advancement (only advance once per 3 seconds)
+          // This prevents multiple rapid calls if backend is slow to respond
+          if (now - lastAdvanceTime > 3000) {
+            console.log('⏰ Auto-advancing phase - time expired');
             setLastAdvanceTime(now);
 
             // Play sound before advancing
@@ -64,7 +67,7 @@ export function CompactTimer({ questionSetId, isVisible, onPhaseChange, onCycleC
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [timerState, isInfinite]);
+  }, [timerState, isInfinite, lastAdvanceTime, soundEnabled]);
 
   // Load initial timer state and poll for updates
   useEffect(() => {

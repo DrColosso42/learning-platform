@@ -79,10 +79,23 @@ export class TimerService {
       throw new Error(data.error || 'Failed to start timer');
     }
 
-    return {
+    const timerState = {
       ...data.timer,
       phaseStartedAt: data.timer.phaseStartedAt ? new Date(data.timer.phaseStartedAt) : null,
     };
+
+    // Debug logging to check for timestamp issues
+    if (timerState.phaseStartedAt) {
+      const elapsed = Math.floor((Date.now() - timerState.phaseStartedAt.getTime()) / 1000);
+      console.log('🕐 Timer phase started at:', timerState.phaseStartedAt.toISOString());
+      console.log('🕐 Current time:', new Date().toISOString());
+      console.log('🕐 Elapsed seconds:', elapsed);
+      if (elapsed > 60) {
+        console.warn('⚠️ Timer appears to have started', elapsed, 'seconds ago - possible timestamp issue');
+      }
+    }
+
+    return timerState;
   }
 
   /**
@@ -296,13 +309,16 @@ export class TimerService {
 
   /**
    * Get the elapsed time in current phase
+   * Returns seconds elapsed since phase started
    */
   static getElapsedTime(timerState: TimerState): number {
     if (!timerState.phaseStartedAt || timerState.currentPhase === 'paused' || timerState.currentPhase === 'completed') {
       return 0;
     }
 
-    return Math.floor((Date.now() - timerState.phaseStartedAt.getTime()) / 1000);
+    const elapsed = Math.floor((Date.now() - timerState.phaseStartedAt.getTime()) / 1000);
+    // Return only positive elapsed time, bounded by reasonable limits
+    return Math.max(0, Math.min(elapsed, 86400)); // Cap at 24 hours to prevent display issues
   }
 
   /**
