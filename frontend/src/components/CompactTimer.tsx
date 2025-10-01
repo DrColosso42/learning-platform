@@ -87,6 +87,14 @@ export function CompactTimer({ questionSetId, isVisible, onPhaseChange, onCycleC
   const loadTimerState = async () => {
     try {
       const state = await TimerService.getTimerState(questionSetId);
+
+      // If no timer exists yet, auto-start it with default config
+      if (!state) {
+        console.log('No timer found - auto-starting timer for questionSet', questionSetId);
+        await handleStartTimer();
+        return;
+      }
+
       setTimerState(state);
       setWorkDuration(state.workDuration);
       setRestDuration(state.restDuration);
@@ -104,7 +112,7 @@ export function CompactTimer({ questionSetId, isVisible, onPhaseChange, onCycleC
 
       setCurrentTime(time);
     } catch (error) {
-      console.log('Timer not started yet for questionSet', questionSetId);
+      console.error('Error loading timer state:', error);
     }
   };
 

@@ -151,6 +151,7 @@ public class TimerController {
     /**
      * Get current timer state
      * GET /api/study-sessions/{questionSetId}/timer
+     * Returns null timer if no timer session exists yet
      */
     @GetMapping
     public ResponseEntity<Map<String, Object>> getTimerState(
@@ -162,10 +163,16 @@ public class TimerController {
             log.info("Getting timer state for user {} questionSet {}", userId, questionSetId);
 
             TimerSession timerSession = timerService.getTimerState(userId, questionSetId);
-            TimerStateResponse response = TimerStateResponse.fromEntity(timerSession);
 
             Map<String, Object> result = new HashMap<>();
-            result.put("timer", response);
+
+            if (timerSession != null) {
+                TimerStateResponse response = TimerStateResponse.fromEntity(timerSession);
+                result.put("timer", response);
+            } else {
+                // No timer session exists yet - return null to indicate timer not started
+                result.put("timer", null);
+            }
 
             return ResponseEntity.ok(result);
 

@@ -77,7 +77,7 @@ public class TimerService {
                     .userId(userId)
                     .workDuration(workDuration != null ? workDuration : 1500)
                     .restDuration(restDuration != null ? restDuration : 300)
-                    .isInfinite(isInfinite != null ? isInfinite : false)
+                    .isInfinite(isInfinite != null ? isInfinite : true) // Default to continuous mode
                     .currentPhase("work")
                     .phaseStartedAt(now)
                     .totalWorkTime(0)
@@ -87,6 +87,9 @@ public class TimerService {
                     .build();
 
             timerSession = timerSessionRepository.save(timerSession);
+
+            log.info("✅ Created new timer session {} - isInfinite: {}, phaseStartedAt: {}",
+                    timerSession.getId(), timerSession.getIsInfinite(), timerSession.getPhaseStartedAt());
 
             // Log start event
             logTimerEvent(timerSession.getId(), "start", null, "work", null);
@@ -230,10 +233,17 @@ public class TimerService {
 
     /**
      * Get current timer state for a question set
+     * Returns null if no timer session exists yet instead of throwing error
      */
     @Transactional(readOnly = true)
     public TimerSession getTimerState(Long userId, Long questionSetId) {
-        return getActiveTimerSession(userId, questionSetId);
+        try {
+            return getActiveTimerSession(userId, questionSetId);
+        } catch (RuntimeException e) {
+            // No timer session exists yet - this is normal when starting a new study session
+            log.debug("No timer session found for user {} questionSet {}", userId, questionSetId);
+            return null;
+        }
     }
 
     /**
